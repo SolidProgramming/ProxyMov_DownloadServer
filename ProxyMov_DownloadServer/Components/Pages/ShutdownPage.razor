@@ -1,0 +1,31 @@
+﻿@using Routes = ProxyMov_DownloadServer.Misc.Routes;
+@attribute [Route(Routes.Shutdown)]
+@inject IHostApplicationLifetime AppLifetime
+@inject IJSRuntime JS
+
+<PageTitle>Shutdown</PageTitle>
+
+<div id="ShuttingDown" class="container text-center mt-4">
+    <HxSpinner Color="ThemeColor.Warning"></HxSpinner>
+    <h1 class="mt-2" style="font-family: 'Roboto', sans-serif;">Shutting down...</h1>
+</div>
+<div id="ServerOffline" class="container text-center hide">    
+    <h1 class="text-danger" style="font-family: 'Roboto', sans-serif;">Server offline</h1>
+</div>
+
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        JS.InvokeVoidAsync("setShutdown");
+
+        StopServer();
+        base.OnAfterRender(firstRender);
+    }
+
+    private void StopServer()
+    {
+        AppLifetime.StopApplication();
+        Environment.Exit(0);
+    }
+}

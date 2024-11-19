@@ -1,38 +1,178 @@
+global using ProxyMov_DownloadServer.Classes;
+global using ProxyMov_DownloadServer.Enums;
+global using ProxyMov_DownloadServer.Factories;
+global using ProxyMov_DownloadServer.Interfaces;
+global using ProxyMov_DownloadServer.Misc;
+global using ProxyMov_DownloadServer.Models;
+global using ProxyMov_DownloadServer.Services;
+using Havit.Blazor.Components.Web;
 using ProxyMov_DownloadServer.Components;
+using PuppeteerSharp;
+using Quartz;
+using System.Net;
+using Toolbelt.Blazor.Extensions.DependencyInjection;
+using Toolbelt.Blazor.I18nText;
 
-namespace ProxyMov_DownloadServer;
 
-public class Program
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults();
+
+// Add services to the container.
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+builder.Services.AddHxServices();
+builder.Services.AddHxMessenger();
+
+builder.Services.AddHsts(_ =>
 {
-    public static void Main(string[] args)
+    _.Preload = true;
+    _.IncludeSubDomains = true;
+});
+
+builder.Services.AddQuartz();
+
+builder.Services.AddQuartzHostedService(_ =>
+{
+    _.WaitForJobsToComplete = true;
+    _.AwaitApplicationStarted = true;
+});
+
+builder.Services.AddI18nText(_ =>
+{
+    _.PersistenceLevel = PersistanceLevel.PersistentCookie;
+});
+
+builder.Services.AddHttpClient<IApiService, ApiService>();
+
+builder.Services.AddSingleton<IApiService, ApiService>();
+builder.Services.AddSingleton<IConverterService, ConverterService>();
+builder.Services.AddSingleton<IQuartzService, QuartzService>();
+
+WebApplication app = builder.Build();
+
+SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
+
+if (settings is null || string.IsNullOrEmpty(settings.ApiUrl))
+{
+    app.Logger.LogError($"{DateTime.Now} | Could not find Settings.json file or settings not complete.");
+    return;
+}
+
+app.Logger.LogInformation($"{DateTime.Now} | Downloading and installing chrome to: {Helper.GetBrowserPath()}");
+
+BrowserFetcherOptions browserFetcherOptions = new() { Path = Helper.GetBrowserPath() };
+BrowserFetcher? browserFetcher = new(browserFetcherOptions);
+await browserFetcher.DownloadAsync();
+
+IConverterService converterService = app.Services.GetRequiredService<IConverterService>();
+bool converterInitSuccess = converterService.Init();
+
+if (!converterInitSuccess)
+{
+    app.Logger.LogError($"{DateTime.Now} | Converter couldn't be initialized!");
+    return;
+}
+
+IApiService apiService = app.Services.GetRequiredService<IApiService>();
+bool apiInitSuccess = apiService.Init();
+
+if (!apiInitSuccess)
+{
+    app.Logger.LogError($"{DateTime.Now} | API service couldn't be initialized!");
+    return;
+}
+
+HosterModel? sto = HosterHelper.GetHosterByEnum(Hoster.STO);
+HosterModel? aniworld = HosterHelper.GetHosterByEnum(Hoster.AniWorld);
+
+DownloaderPreferencesModel? downloaderPreferences = await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences");
+
+WebProxy? proxy = default;
+
+if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
+{
+    app.Logger.LogInformation($"{DateTime.Now} | Proxy configured: {downloaderPreferences.ProxyUri}");
+
+    proxy = ProxyFactory.CreateProxy(new ProxyAccountModel()
     {
-        var builder = WebApplication.CreateBuilder(args);
-        builder.AddServiceDefaults();
+        Uri = downloaderPreferences.ProxyUri,
+        Username = downloaderPreferences.ProxyUsername,
+        Password = downloaderPreferences.ProxyPassword
+    });
+}
 
-        // Add services to the container.
-        builder.Services.AddRazorComponents()
-            .AddInteractiveServerComponents();
+(bool success, string? ipv4) = await new HttpClient().GetIPv4();
+if (!success)
+{
+    app.Logger.LogError($"{DateTime.Now} | HttpClient could not retrieve WAN IP Address.");
+    return;
+}
 
-        var app = builder.Build();
+app.Logger.LogInformation($"{DateTime.Now} | Your WAN IP is: {ipv4}");
 
-        app.MapDefaultEndpoints();
+app.Logger.LogInformation($"{DateTime.Now} | Checking if Hosters are reachable...");
 
-        // Configure the HTTP request pipeline.
-        if (!app.Environment.IsDevelopment())
-        {
-            app.UseExceptionHandler("/Error");
-            // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-            app.UseHsts();
-        }
+bool hosterReachableSTO = await HosterHelper.HosterReachable(sto, proxy);
 
-        app.UseHttpsRedirection();
+if (!hosterReachableSTO)
+{
+    app.Logger.LogError($"{DateTime.Now} | Hoster: {sto.Host} not reachable. Maybe there is a captcha you need to solve.");
 
-        app.UseAntiforgery();
+    if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+    {
+        //OpenBrowser(sto.BrowserUrl);
+    }
 
-        app.MapStaticAssets();
-        app.MapRazorComponents<App>()
-            .AddInteractiveServerRenderMode();
+    return;
+}
 
-        app.Run();
+bool hosterReachableAniworld = await HosterHelper.HosterReachable(aniworld, proxy);
+
+if (!hosterReachableAniworld)
+{
+    app.Logger.LogError($"{DateTime.Now} | Hoster: {aniworld.Host} not reachable. Maybe there is a captcha you need to solve.");
+
+    if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+    {
+        //OpenBrowser(aniworld.BrowserUrl);
+    }
+    return;
+}
+
+app.Logger.LogInformation($"{DateTime.Now} | Initializing Cronjob and HttpClients...");
+await CronJob.InitAsync(proxy);
+
+IQuartzService quartz = app.Services.GetRequiredService<IQuartzService>();
+await quartz.Init();
+
+if (downloaderPreferences is null)
+{
+    await quartz.CreateJob(15);
+}
+else
+{
+    if (downloaderPreferences.AutoStart)
+    {
+        await quartz.CreateJob(downloaderPreferences.Interval);
     }
 }
+
+app.MapDefaultEndpoints();
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+}
+
+
+app.UseHsts();
+app.UseHttpsRedirection();
+app.UseAntiforgery();
+
+app.MapStaticAssets();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+app.Run();

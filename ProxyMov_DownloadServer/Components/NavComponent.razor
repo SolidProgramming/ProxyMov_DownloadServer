@@ -1,0 +1,56 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavManager
+@inject IHxMessengerService ToastService
+@inject Toolbelt.Blazor.I18nText.I18nText I18nText
+
+<HxSidebar CssClass="sticky-top">
+    <HeaderTemplate>
+        <div class="w-100">
+            <h6 class="text-secondary ps-2 pt-1 pb-1" style="color: #212529">v.@(GetAssemblyVersion())</h6>
+            <LanguageSelectorComponent></LanguageSelectorComponent>
+        </div>
+    </HeaderTemplate>
+    <ItemsTemplate>
+        <HxSidebarItem Icon="BootstrapIcon.Columns" Href="@ProxyMov_DownloadServer.Misc.Routes.Dashboard">
+            <ContentTemplate>
+                Dashboard
+                <HxBadge Color="ThemeColor.Secondary" CssClass="ms-2">
+
+                </HxBadge>
+            </ContentTemplate>
+        </HxSidebarItem>
+        <HxSidebarItem Icon="BootstrapIcon.CardText" Href="@ProxyMov_DownloadServer.Misc.Routes.Logs">
+            <ContentTemplate>
+                Logs
+                <HxBadge Color="ThemeColor.Secondary" CssClass="ms-2">
+
+                </HxBadge>
+            </ContentTemplate>
+        </HxSidebarItem>       
+        <HxSidebarItem Icon="BootstrapIcon.BoxArrowLeft" CssClass="mt-5 text-danger" Href="@ProxyMov_DownloadServer.Misc.Routes.Shutdown">
+            <ContentTemplate>
+                <span class="ms-2">@LangText["NavShutdownServer"]</span>
+            </ContentTemplate>
+        </HxSidebarItem>
+        <HxSidebarItem Icon="BootstrapIcon.Gear" CssClass="border-top pt-2 text-warning" Href="@ProxyMov_DownloadServer.Misc.Routes.Settings">
+            <ContentTemplate>
+                <span class="ms-2">@LangText["Settings"]</span>
+            </ContentTemplate>
+        </HxSidebarItem>
+    </ItemsTemplate>
+    <TogglerTemplate></TogglerTemplate>
+</HxSidebar>
+
+@code {
+    private I18nText.Lang LangText = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
+    }
+
+    private string? GetAssemblyVersion()
+    {
+        return typeof(Program).Assembly.GetName().Version!.ToString();
+    }
+}

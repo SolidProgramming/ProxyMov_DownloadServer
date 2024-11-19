@@ -1,0 +1,286 @@
+﻿@inject IHxMessengerService ToastService
+@inject ILogger<DownloadQueComponent> DownloadQueComponentLogger
+@inject IApiService ApiService
+@inject Toolbelt.Blazor.I18nText.I18nText I18nText
+
+<div class="container mt-5">    
+    <div style="overflow-y: auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">#</th>
+                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Name</th>
+                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
+                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
+                    <th scope="col" class="text-center"></th>
+                    <th scope="col"></th>
+                    <th scope="col"></th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Downloads is not null)
+                {
+                    int i = 1;
+
+                    @foreach (EpisodeDownloadModel download in Downloads.Take(VisibleQueueEntriesCount))
+                    {
+                        @if (i == 1)
+                        {
+                            TextClass = "text-warning";
+                        }
+                        else
+                        {
+                            TextClass = "";
+                        }
+                        <tr>
+                            <td class="text-center align-middle @TextClass" width="50" style="font-family: 'Roboto', sans-serif;">
+                                @if (i == 1)
+                                {
+                                    <span>Next</span>
+                                }
+                                else
+                                {
+                                    <span>@i</span>
+                                }
+                            </td>
+                            <td class="text-center align-middle @TextClass" style="font-family: 'Roboto', sans-serif;">
+                                @download.Download.Name
+                            </td>
+                            <td class="text-center align-middle @TextClass" width="70" style="font-family: 'Roboto', sans-serif;">
+                                @($"S{download.Download.Season:D2}")
+                            </td>
+                            <td class="text-center align-middle @TextClass" width="70" style="font-family: 'Roboto', sans-serif;">
+                                @($"E{download.Download.Episode:D2}")
+                            </td>
+                            <td class="text-center align-middle" width="90">
+                                <LanguageFlagComponent Languages="@download.Download.LanguageFlag"></LanguageFlagComponent>
+                            </td>
+                            <td class="text-center align-middle" width="50">
+                                <HxButton OnClick="@(() => ToggleStopMark(download))" Color="@(download.HasStopMark ? ThemeColor.Info : ThemeColor.Secondary)" Icon="@(download.HasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
+                            </td>
+                            <td class="text-center align-middle" width="50">
+                                <HxButton OnClick="@(() => SkipDownload(download))" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                            </td>
+                            <td class="text-center align-middle" width="50">
+                                <HxButton OnClick="@(() => RemoveDownloadFromQueue(download))" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
+                            </td>
+                        </tr>
+                        i++;
+                    }
+
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="row mb-5">
+        @if (Downloads is not null)
+        {
+            <div class="col text-center">
+                <HxButton Enabled="(VisibleQueueEntriesCount > MinQueEntriesCount)" CssClass="w-100" OnClick="DecreaseVisibleQueueEntriesCount" Color="ThemeColor.Secondary" Icon="BootstrapIcon.ArrowsCollapse"></HxButton>
+            </div>
+            <div class="col text-center">
+                <HxButton Enabled="(VisibleQueueEntriesCount < Downloads.Count)" CssClass="w-100" OnClick="IncreaseVisibleQueueEntriesCount" Color="ThemeColor.Secondary" Icon="BootstrapIcon.ArrowsExpand"></HxButton>
+            </div>
+        }
+        else if (Downloads is null && CronJobState == CronJobState.CheckingForDownloads)
+        {
+            <h5 class="text-center align-middle">
+                <HxBadge Type="BadgeType.RoundedPill" Color="ThemeColor.Secondary">
+                    <HxIcon Icon="BootstrapIcon.FileEarmarkPlus"></HxIcon>
+
+                </HxBadge>
+                <HxSpinner CssClass="ms-1" Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
+            </h5>
+        }
+        else
+        {
+            <h5 class="text-center align-middle">
+                <HxBadge Type="BadgeType.RoundedPill" Color="ThemeColor.Secondary">
+                    <HxIcon Icon="BootstrapIcon.FileEarmarkPlus"></HxIcon>
+                    <span class="ms-1">0</span>
+                </HxBadge>
+            </h5>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<int> OnDownloadSkippOrRemove { get; set; }
+
+    private I18nText.Lang LangText = new();
+
+    private string? TextClass { get; set; }
+    private List<EpisodeDownloadModel>? Downloads;
+    private CronJobState CronJobState = CronJobState.WaitForNextCycle;
+
+    private int VisibleQueueEntriesCount { get; set; } = 8;
+    private const int MinQueEntriesCount = 8;
+
+    private bool CanDecreaseQueEntriesCount { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            VisibleQueueEntriesCount = 8;
+
+            CronJob.CronJobEvent += CronJobEvent;
+            CronJob.CronJobDownloadsEvent += CronJobDownloads;
+
+            Downloads = CronJob.DownloadQue?.ToList().Except(CronJob.SkippedDownloads).ToList();
+
+            if (Downloads is null || Downloads.Count == 0)
+                return;
+
+            StateHasChanged();
+            OnDownloadSkippOrRemove.InvokeAsync(Downloads.Count);
+        }
+    }
+
+    private void CronJobDownloads(int downloadCount, int languageDownloadCount)
+    {
+        Downloads = CronJob.DownloadQue?.ToList().Except(CronJob.SkippedDownloads).ToList();
+
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void CronJobEvent(CronJobState jobState)
+    {
+        CronJobState = CronJob.CronJobState;
+
+        switch (jobState)
+        {
+            case CronJobState.WaitForNextCycle:
+                Downloads = null;
+                break;
+
+            case CronJobState.Running:
+                break;
+
+            case CronJobState.CheckingForDownloads:
+                break;
+            default:
+                break;
+        }
+
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void SkipDownload(EpisodeDownloadModel download)
+    {
+        bool? removed = Downloads?.Remove(download);
+
+        if (removed is null || !removed.Value)
+        {
+            ToastService.AddMessage(ErrorMessage.SkipDownloadFail, MessageType.Error);
+            DownloadQueComponentLogger.LogError(ErrorMessage.SkipDownloadFail);
+            return;
+        }
+
+        CronJob.SkippedDownloads.Add(download);
+
+        StateHasChanged();
+
+        ToastService.AddMessage(InfoMessage.EpisodeDownloadSkipped, MessageType.Info);
+        DownloadQueComponentLogger.LogInformation(InfoMessage.EpisodeDownloadSkipped);
+
+        OnDownloadSkippOrRemove.InvokeAsync(Downloads!.Count);
+    }
+
+    private async Task RemoveDownloadFromQueue(EpisodeDownloadModel download)
+    {
+        bool? removed = Downloads?.Remove(download);
+
+        if (removed is null || !removed.Value)
+        {
+            ToastService.AddMessage(ErrorMessage.RemoveDownloadFail, MessageType.Error);
+            DownloadQueComponentLogger.LogError(ErrorMessage.RemoveDownloadFail);
+            return;
+        }
+
+        bool removeSuccess = await ApiService.RemoveFinishedDownload(download);
+
+        if (removeSuccess)
+        {
+            DownloadQueComponentLogger.LogInformation(InfoMessage.DownloadDBRemoved);
+            ToastService.AddMessage(InfoMessage.DownloadDBRemoved, MessageType.Info);
+        }
+        else
+        {
+            DownloadQueComponentLogger.LogError(ErrorMessage.RemoveDBEpisodeDownloadFail);
+            ToastService.AddMessage(ErrorMessage.RemoveDBEpisodeDownloadFail, MessageType.Error);
+        }
+
+        CronJob.SkippedDownloads.Add(download);
+
+        StateHasChanged();
+
+        await OnDownloadSkippOrRemove.InvokeAsync(Downloads!.Count);
+    }
+
+    private void ToggleStopMark(EpisodeDownloadModel download)
+    {
+        if (!download.HasStopMark)
+        {
+            var bla = Downloads.Where(_ => _.HasStopMark);
+
+            foreach (EpisodeDownloadModel episodeDownload in bla)
+            {
+                episodeDownload.HasStopMark = false;
+            }
+        }
+
+        download.HasStopMark = !download.HasStopMark;
+
+        if (download.HasStopMark)
+        {
+            CronJob.StopMarkDownload = download;
+            ToastService.AddMessage(InfoMessage.StopmarkSet, MessageType.Secondary);
+        }
+        else
+        {
+            CronJob.StopMarkDownload = default;
+            ToastService.AddMessage(InfoMessage.StopmarkUnset, MessageType.Secondary);
+        }
+
+        StateHasChanged();
+    }
+
+    private void IncreaseVisibleQueueEntriesCount()
+    {
+        if (Downloads is null || Downloads.Count == 0)
+            return;
+
+        int newEntriesCount = VisibleQueueEntriesCount + 5;
+
+        if (newEntriesCount > Downloads.Count)
+        {
+            newEntriesCount = Downloads.Count;
+        }
+
+        VisibleQueueEntriesCount = newEntriesCount;
+    }
+
+    private void DecreaseVisibleQueueEntriesCount()
+    {
+        if (Downloads is null || Downloads.Count == 0)
+            return;
+
+        int newEntriesCount = VisibleQueueEntriesCount - 5;
+
+        if (newEntriesCount < MinQueEntriesCount)
+        {
+            newEntriesCount = MinQueEntriesCount;
+
+        }
+
+        VisibleQueueEntriesCount = newEntriesCount;
+    }
+}

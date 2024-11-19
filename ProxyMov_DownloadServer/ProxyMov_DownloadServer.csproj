@@ -9,11 +9,39 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Remove="appdata\settings.json" />
+    <Content Remove="settings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="appdata\settings.json" />
+    <None Include="settings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Dashboard.Sdk.win-x64" Version="9.0.0" />
+    <PackageReference Include="CliWrap" Version="3.6.7" />
+    <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.7.1" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.71" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
+    <PackageReference Include="PuppeteerSharp" Version="19.0.1" />
+    <PackageReference Include="Quartz" Version="3.13.1" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.13.0" />
+    <PackageReference Include="Telegram.Bot" Version="19.0.0" />
+    <PackageReference Include="Toolbelt.Blazor.I18nText" Version="13.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ProxyMov_DownloadServer.ServiceDefaults\ProxyMov_DownloadServer.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Binaries\ffmpeg.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Binaries\ffprobe.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

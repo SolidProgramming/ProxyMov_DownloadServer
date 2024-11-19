@@ -1,0 +1,35 @@
+﻿<div>
+    @if (Languages.HasFlag(Language.GerDub))
+    {
+        <img class="@(FlagCss)" style="width: 32px" src="img/german_dub.svg">
+        PreviousLangFlags++;
+    }
+    @if (Languages.HasFlag(Language.EngDub))
+    {
+        <img class="@(PreviousLangFlags > 0 ? FlagWithSpacerCss : FlagCss)" style="width: 32px" src="img/english_dub.svg">
+        PreviousLangFlags++;
+    }
+    @if (Languages.HasFlag(Language.GerSub))
+    {
+        <img class="@(PreviousLangFlags > 0 ? FlagWithSpacerCss : FlagCss)" style="width: 32px" src="img/german_sub.svg">
+        PreviousLangFlags++;
+    }
+    @if (Languages.HasFlag(Language.EngDub))
+    {
+        <img class="@(PreviousLangFlags > 0 ? FlagWithSpacerCss : FlagCss)" style="width: 32px" src="img/english_sub.svg">
+         PreviousLangFlags++;
+    }
+    @if(Languages.HasFlag(Language.EngDubGerSub))
+    {
+        <img class="@(PreviousLangFlags > 0 ? FlagWithSpacerCss : FlagCss)" style="width: 32px" src="img/english_dub-german_sub.svg">
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Language Languages { get; set; }
+
+    private int PreviousLangFlags = 0;
+    private const string FlagCss = "d-inline";
+    private const string FlagWithSpacerCss = "d-inline ms-1";
+}

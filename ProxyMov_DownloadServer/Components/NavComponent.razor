@@ -5,8 +5,7 @@
 
 <HxSidebar CssClass="sticky-top">
     <HeaderTemplate>
-        <div class="w-100">
-            <h6 class="text-secondary ps-2 pt-1 pb-1" style="color: #212529">v.@(GetAssemblyVersion())</h6>
+        <div class="w-100">            
             <LanguageSelectorComponent></LanguageSelectorComponent>
         </div>
     </HeaderTemplate>
@@ -47,10 +46,5 @@
     protected override async Task OnInitializedAsync()
     {
         LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
-    }
-
-    private string? GetAssemblyVersion()
-    {
-        return typeof(Program).Assembly.GetName().Version!.ToString();
     }
 }

@@ -34,8 +34,8 @@ namespace ProxyMov_DownloadServer.Misc
 
             if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" && RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                chromeFolderPath = Path.Combine(GetBrowserPath(), "ChromeHeadlessShell");
-                files = Directory.GetFiles(chromeFolderPath, "chrome-headless-shell", SearchOption.AllDirectories);
+                chromeFolderPath = Path.Combine(GetBrowserPath(), "Chrome");
+                files = Directory.GetFiles(chromeFolderPath, "chrome", SearchOption.AllDirectories);
             }
             else
             {

@@ -28,28 +28,17 @@
 <body>
     <script>
         var isShuttingDown = false;
-        var reconnectH5Set = false;
-        var reconnectText = "Die Verbindung zum Server ist abgebrochen.";
 
         function setShutdown() {
             isShuttingDown = true;
         }
         // Wait until a 'reload' button appears
-        new MutationObserver((mutations, observer) => {
-
-            var reconnectElement = document.getElementById("components-reconnect-modal");
+        new MutationObserver((mutations, observer) => {            
+            var reconnectElement = document.querySelector("#components-reconnect-modal");
 
             if (reconnectElement) {
                 if (isShuttingDown) {
                     reconnectElement.remove();
-                    document.getElementById('ShuttingDown').classList.add("hide");
-                    document.getElementById('ServerOffline').classList.remove("hide");
-                }
-
-                var h5Element = document.querySelector("#components-reconnect-modal > h5");
-
-                if (h5Element && h5Element.innerHTML != reconnectText) {
-                    h5Element.innerHTML = reconnectText;
                 }
             }
         }).observe(document.body, { childList: true, subtree: true });

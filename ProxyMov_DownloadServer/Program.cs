@@ -61,7 +61,7 @@ if (settings is null || string.IsNullOrEmpty(settings.ApiUrl))
 
 app.Logger.LogInformation($"{DateTime.Now} | Downloading and installing chrome to: {Helper.GetBrowserPath()}");
 
-BrowserFetcherOptions browserFetcherOptions = new() { Path = Helper.GetBrowserPath() };
+BrowserFetcherOptions browserFetcherOptions = new() { Path = Helper.GetBrowserPath(), Browser = SupportedBrowser.Chrome };
 BrowserFetcher? browserFetcher = new(browserFetcherOptions);
 await browserFetcher.DownloadAsync();
 
@@ -118,12 +118,6 @@ bool hosterReachableSTO = await HosterHelper.HosterReachable(sto, proxy);
 if (!hosterReachableSTO)
 {
     app.Logger.LogError($"{DateTime.Now} | Hoster: {sto.Host} not reachable. Maybe there is a captcha you need to solve.");
-
-    if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
-    {
-        //OpenBrowser(sto.BrowserUrl);
-    }
-
     return;
 }
 
@@ -132,11 +126,6 @@ bool hosterReachableAniworld = await HosterHelper.HosterReachable(aniworld, prox
 if (!hosterReachableAniworld)
 {
     app.Logger.LogError($"{DateTime.Now} | Hoster: {aniworld.Host} not reachable. Maybe there is a captcha you need to solve.");
-
-    if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
-    {
-        //OpenBrowser(aniworld.BrowserUrl);
-    }
     return;
 }
 

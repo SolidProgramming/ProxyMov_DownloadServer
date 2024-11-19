@@ -333,6 +333,7 @@ namespace ProxyMov_DownloadServer.Classes
                 await Browser.CloseAsync();
             }
 
+            ConverterService.Abort();
             NextRun = null;
         }
 
@@ -341,8 +342,9 @@ namespace ProxyMov_DownloadServer.Classes
             Browser ??= await Puppeteer.LaunchAsync(new LaunchOptions
             {
                 Headless = true,
+                ExecutablePath = Helper.GetBrowserBinPath(),
                 Args = ["--no-sandbox", ( downloaderPreferences.UseProxy ? $"--proxy-server={downloaderPreferences.ProxyUri}" : "" )]
-            }); //ExecutablePath = Helper.GetBrowserBinPath(),
+            });
 
             string proxyLogText = $"| Url: {downloaderPreferences.ProxyUri}@{downloaderPreferences.ProxyUsername}";
             logger.LogInformation($"{DateTime.Now} | Use Proxy: {downloaderPreferences.UseProxy} {( downloaderPreferences.UseProxy ? proxyLogText : "" )}");
@@ -440,19 +442,21 @@ namespace ProxyMov_DownloadServer.Classes
 
             await page.GoToAsync(streamUrl);
 
-            string? successSelector = null;
-            bool foundSelector = false;
+            List<Task<(bool, string?)>> selectorTasks = [];
+            CancellationTokenSource cts = new();
+            CancellationToken token = cts.Token;
 
             foreach (string selector in selectorChain)
             {
-                foundSelector = await TryWaitForSelectorAsync(page, selector);
-
-                if (foundSelector)
-                {
-                    successSelector = selector;
-                    break;
-                }
+                selectorTasks.Add(TryWaitForSelectorAsync(page, selector, cancellationToken: token));
             }
+
+            Task<(bool, string?)> result = await Task.WhenAny(selectorTasks);
+
+            (bool foundSelector, string? successSelector) = await result;
+
+            if (foundSelector)
+                cts.Cancel();
 
             if (!foundSelector || string.IsNullOrEmpty(successSelector))
                 return default;
@@ -461,9 +465,33 @@ namespace ProxyMov_DownloadServer.Classes
             await page.BringToFrontAsync();
 
             string selectorPlayer = "media-player > media-provider > video > source";
-            await TryWaitForSelectorAsync(page, selectorPlayer, 3000);
+            await TryWaitForSelectorAsync(page, selectorPlayer, timeout: 3000);
 
             return await page.GetContentAsync();
+        }
+
+        private async Task<(bool, string?)> TryWaitForSelectorAsync(IPage page, string selector, int timeout = 5000, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return await Task.Run(async () =>
+            {
+                try
+                {
+                    await page.WaitForSelectorAsync(selector, new WaitForSelectorOptions { Timeout = timeout });
+                    logger.LogInformation($"{DateTime.Now} | Working query selector: {selector}");
+                    return (true, selector);
+                }
+                catch (WaitTaskTimeoutException)
+                {
+                    return (false, default!);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"{DateTime.Now} | {ex}");
+                    return (false, default!);
+                }
+            }, cancellationToken);
         }
 
         private async Task RemoveDownload(EpisodeDownloadModel episodeDownload)
@@ -473,20 +501,6 @@ namespace ProxyMov_DownloadServer.Classes
             if (!removeSuccess)
             {
                 CronJobErrorEvent?.Invoke(MessageType.Warning, WarningMessage.DownloadNotRemoved);
-            }
-        }
-
-        private static async Task<bool> TryWaitForSelectorAsync(IPage page, string selector, int timeout = 5000)
-        {
-            try
-            {
-                await page.WaitForSelectorAsync(selector, new WaitForSelectorOptions { Timeout = timeout });
-
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
             }
         }
     }

@@ -1,6 +1,4 @@
 ﻿using CliWrap;
-using Quartz.Util;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -28,6 +26,8 @@ namespace ProxyMov_DownloadServer.Services
 
         private static long PreviousDownloadSize = 0;
         private static DateTime? FFMPEGStartTime;
+
+        private const int MaxGetStreamDurationRetries = 3;
 
         public bool Init()
         {
@@ -292,9 +292,7 @@ namespace ProxyMov_DownloadServer.Services
 
         private async Task<TimeSpan> GetStreamDuration(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
         {
-            StringBuilder stdOutBuffer = new();
-
-            string args = "";
+            string ffProbeArgs = "";
             string proxyAuthArgs = "";
 
             if (downloaderPreferences.UseProxy && !string.IsNullOrWhiteSpace(downloaderPreferences.ProxyUri))
@@ -303,23 +301,42 @@ namespace ProxyMov_DownloadServer.Services
                 proxyAuthArgs = $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
             }
 
-            args = $"{( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 -sexagesimal \"{streamUrl}\"";
+            ffProbeArgs = $"{( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 -sexagesimal \"{streamUrl}\"";
 
-            string? binPath = Helper.GetFFProbePath();
+            TimeSpan streamDuration;
 
-            CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
+            for (int attempt = 1; attempt < MaxGetStreamDurationRetries; attempt++)
+            {
+                streamDuration = await TryGetStreamDuration(ffProbeArgs, attempt);
+
+                if (streamDuration != TimeSpan.Zero)
+                    return streamDuration;
+            }
+
+            return TimeSpan.Zero;
+        }
+
+        private async Task<TimeSpan> TryGetStreamDuration(string ffProbeArgs, int attemptCount)
+        {
+            int waitDuration = attemptCount * 5;
+
+            StringBuilder stdOutBuffer = new();
+
+            CancellationTokenSource cts = new(TimeSpan.FromSeconds(waitDuration));
+
+            string ffProbeBinPath = Helper.GetFFProbePath();
 
             try
             {
-                await Cli.Wrap(binPath!)
-                .WithArguments(args)
+                await Cli.Wrap(ffProbeBinPath)
+                .WithArguments(ffProbeArgs)
                     .WithValidation(CommandResultValidation.None)
                     .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
                         .ExecuteAsync(cts.Token);
             }
             catch (OperationCanceledException)
             {
-                logger.LogWarning($"{DateTime.Now} | {WarningMessage.StreamDurationTimeout}");
+                logger.LogWarning($"{DateTime.Now} | Failed to get stream duration! Retries left: {MaxGetStreamDurationRetries - attemptCount}");
                 return TimeSpan.Zero;
             }
             catch (Exception ex)
@@ -331,12 +348,9 @@ namespace ProxyMov_DownloadServer.Services
             string? stdOut = stdOutBuffer.ToString();
 
             if (string.IsNullOrEmpty(stdOut))
-            {
-
                 return TimeSpan.Zero;
-            }
 
-
+            logger.LogInformation($"{DateTime.Now} | Found stream duration on attempt: {attemptCount}");
             return TimeSpan.Parse(stdOut);
         }
 

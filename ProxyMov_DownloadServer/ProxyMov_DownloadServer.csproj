@@ -9,12 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Remove="appdata\settings.json" />
     <Content Remove="settings.json" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="appdata\settings.json" />
     <None Include="settings.json" />
   </ItemGroup>
 
@@ -33,15 +31,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ProxyMov_DownloadServer.ServiceDefaults\ProxyMov_DownloadServer.ServiceDefaults.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Binaries\ffmpeg.exe">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </None>
-    <None Update="Binaries\ffprobe.exe">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>

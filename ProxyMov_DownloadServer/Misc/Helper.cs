@@ -12,7 +12,7 @@ namespace ProxyMov_DownloadServer.Misc
             return Path.Combine(Directory.GetCurrentDirectory(), Globals.FFMPEGBin);
         }
 
-        internal static string? GetFFProbePath()
+        internal static string GetFFProbePath()
         {
             if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" && RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 return Path.Combine(Directory.GetCurrentDirectory(), "appdata", Globals.FFProbeBinDocker);

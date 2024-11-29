@@ -367,8 +367,14 @@ namespace ProxyMov_DownloadServer.Classes
                 if (string.IsNullOrEmpty(videoPageHtml))
                     return default;
 
-                if (TryGetVideoSource(videoPageHtml, out string? m3u8))
-                    return m3u8;
+                TryGetVideoSource(videoPageHtml, out string? m3u8);
+
+                string atob = $"atob(\"{m3u8}\")";
+
+                System.Text.Json.JsonElement? source = await page.EvaluateExpressionAsync(atob);
+
+                if (source != null && source.HasValue)
+                    return source.Value.GetString();
 
                 return default;
             }
@@ -382,7 +388,6 @@ namespace ProxyMov_DownloadServer.Classes
                 await Browser.CloseAsync();
                 Browser = default;
             }
-
         }
 
         private bool TryGetVideoSource(string html, out string? m3u8)
@@ -415,7 +420,6 @@ namespace ProxyMov_DownloadServer.Classes
                 m3u8 = HttpUtility.HtmlDecode(sourceMatch.Groups[1].Value);
                 return true;
             }
-
 
             Match playerSourceMatch = new Regex("<source src=\"(.*?)\"").Match(html);
 
@@ -460,12 +464,6 @@ namespace ProxyMov_DownloadServer.Classes
 
             if (!foundSelector || string.IsNullOrEmpty(successSelector))
                 return default;
-
-            await page.ClickAsync(successSelector);
-            await page.BringToFrontAsync();
-
-            string selectorPlayer = "media-player > media-provider > video > source";
-            await TryWaitForSelectorAsync(page, selectorPlayer, timeout: 3000);
 
             return await page.GetContentAsync();
         }

@@ -180,7 +180,7 @@ namespace ProxyMov_DownloadServer.Services
 
             if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
             {
-                folderPath = @"/app/downloads";
+                folderPath = @"/data/downloads";
 
                 seriesFolderPath = Path.Combine(folderPath, download.Name);
 

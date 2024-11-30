@@ -5,7 +5,8 @@
 
 <HxSidebar CssClass="sticky-top mb-4" ResponsiveBreakpoint="SidebarResponsiveBreakpoint.Large">
     <HeaderTemplate>
-        <div class="w-100">            
+        <div class="w-100">
+            <h6 class="text-secondary ps-2 pt-1 pb-1" style="color: #212529">v.@(GetAssemblyVersion())</h6>
             <LanguageSelectorComponent></LanguageSelectorComponent>
         </div>
     </HeaderTemplate>
@@ -17,7 +18,18 @@
 
                 </HxBadge>
             </ContentTemplate>
-        </HxSidebarItem>      
+        </HxSidebarItem>
+        @if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+        {
+            <HxSidebarItem Icon="BootstrapIcon.ArrowDownCircle" Href="@ProxyMov_DownloadServer.Misc.Routes.Updates">
+                <ContentTemplate>
+                    <span class="ms-2">@LangText["NavCheckUpdates"]</span>
+                    <HxBadge Color="ThemeColor.Secondary" CssClass="ms-2">
+
+                    </HxBadge>
+                </ContentTemplate>
+            </HxSidebarItem>
+        }
         <HxSidebarItem Icon="BootstrapIcon.BoxArrowLeft" CssClass="mt-5 text-danger" Href="@ProxyMov_DownloadServer.Misc.Routes.Shutdown">
             <ContentTemplate>
                 <span class="ms-2">@LangText["NavShutdownServer"]</span>
@@ -38,5 +50,10 @@
     protected override async Task OnInitializedAsync()
     {
         LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
+    }
+
+    private string? GetAssemblyVersion()
+    {
+        return typeof(Program).Assembly.GetName().Version!.ToString();
     }
 }

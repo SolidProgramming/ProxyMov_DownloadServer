@@ -9,12 +9,21 @@ using Havit.Blazor.Components.Web;
 using ProxyMov_DownloadServer.Components;
 using PuppeteerSharp;
 using Quartz;
+using System.Diagnostics;
 using System.Net;
+using System.Runtime.InteropServices;
 using Toolbelt.Blazor.Extensions.DependencyInjection;
 using Toolbelt.Blazor.I18nText;
 
+const string hostUrl = "http://localhost:8080";
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+{
+    builder.WebHost.UseUrls(hostUrl);
+}
+
 builder.AddServiceDefaults();
 
 // Add services to the container.
@@ -48,6 +57,7 @@ builder.Services.AddHttpClient<IApiService, ApiService>();
 builder.Services.AddSingleton<IApiService, ApiService>();
 builder.Services.AddSingleton<IConverterService, ConverterService>();
 builder.Services.AddSingleton<IQuartzService, QuartzService>();
+builder.Services.AddSingleton<Updater.Interfaces.IUpdateService, Updater.Services.UpdateService>();
 
 WebApplication app = builder.Build();
 
@@ -155,7 +165,6 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
 }
 
-
 app.UseHsts();
 app.UseHttpsRedirection();
 app.UseAntiforgery();
@@ -164,4 +173,28 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+{
+    OpenBrowser(hostUrl);
+}
+
 app.Run();
+
+static void OpenBrowser(string url)
+{
+    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+    }
+    else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+    {
+        if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+        {
+            Process.Start("xdg-open", url);
+        }
+    }
+    else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+    {
+        Process.Start("open", url);
+    }
+}

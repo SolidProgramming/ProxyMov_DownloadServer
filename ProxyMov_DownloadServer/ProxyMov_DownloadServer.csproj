@@ -6,7 +6,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>398a6da7-3e7a-42d3-843a-cb313269bee2</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <ApplicationIcon>wwwroot\img\favicon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Updates\**" />
+    <Content Remove="Updates\**" />
+    <EmbeddedResource Remove="Updates\**" />
+    <None Remove="Updates\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <Content Remove="settings.json" />
@@ -19,7 +28,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Dashboard.Sdk.win-x64" Version="9.0.0" />
     <PackageReference Include="CliWrap" Version="3.6.7" />
-    <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.7.1" />
+    <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.7.2" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.71" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
     <PackageReference Include="PuppeteerSharp" Version="19.0.1" />
@@ -31,6 +40,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ProxyMov_DownloadServer.ServiceDefaults\ProxyMov_DownloadServer.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Updater\Updater.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Binaries\ffmpeg.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Binaries\ffprobe.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

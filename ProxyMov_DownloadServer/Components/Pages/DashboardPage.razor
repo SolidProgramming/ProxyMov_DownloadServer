@@ -1,6 +1,8 @@
 ﻿@using Routes = ProxyMov_DownloadServer.Misc.Routes;
 @using Microsoft.AspNetCore.Components.Rendering
 @using System.Net
+@using Updater.Components
+@using Updater.Interfaces
 @attribute [Route(Routes.Dashboard)]
 @attribute [Route(Routes.Index)]
 @inject IHxMessengerService ToastService
@@ -15,6 +17,10 @@
 
 <PageTitle>Dashboard</PageTitle>
 
+@if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+{
+    <UpdateComponent></UpdateComponent>
+}
 <HxModal ShowCloseButton="false" CloseOnEscape="false" Size="ModalSize.Large" @ref="DownloadPathModal" Centered="true">
     <BodyTemplate>
         <div class="container">

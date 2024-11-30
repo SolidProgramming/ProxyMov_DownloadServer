@@ -1,0 +1,17 @@
+﻿@using Updater.Components
+@using Updater.Interfaces
+@using Routes = ProxyMov_DownloadServer.Misc.Routes;
+@attribute [Route(Routes.Updates)]
+@inject IUpdateService UpdateService
+
+<PageTitle>Updates</PageTitle>
+
+<UpdateComponent ForceDownloadButton="true"></UpdateComponent>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        string assemblyVersion = typeof(Program).Assembly.GetName().Version.ToString();
+        await UpdateService.CheckForUpdates(assemblyVersion);
+    }
+}

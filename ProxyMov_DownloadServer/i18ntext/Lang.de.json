@@ -16,5 +16,6 @@
   "ProxyUsername": "Benutzername:",
   "ProxyPassword": "Passwort:",
   "Save": "Speichern",
-  "Cancel": "Abbrechen"
+  "Cancel": "Abbrechen",
+  "NavCheckUpdates": "Updates prüfen"
 }

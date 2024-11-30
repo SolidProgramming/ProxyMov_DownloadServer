@@ -1,4 +1,5 @@
 ﻿using CliWrap;
+using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -62,7 +63,15 @@ namespace ProxyMov_DownloadServer.Services
         private void ConverterService_ConverterStateChanged(ConverterState state, DownloadModel? download = null)
         {
             ConverterState = state;
-            logger.LogInformation($"{DateTime.Now} | {InfoMessage.ConverterChangedState} {state}");
+
+            if (state == ConverterState.Downloading && download is not null)
+            {
+                logger.LogInformation($"{DateTime.Now} | Downloading: {download.Name}_S{download.Season:D2}E{download.Episode:D2}");
+            }
+            else
+            {
+                logger.LogInformation($"{DateTime.Now} | {InfoMessage.ConverterChangedState} {state}");
+            }
         }
 
         public async Task<CommandResultExt?> StartDownload(string streamUrl, DownloadModel download, string downloadPath, DownloaderPreferencesModel downloaderPreferences)
@@ -110,9 +119,6 @@ namespace ProxyMov_DownloadServer.Services
                 string proxyUri = downloaderPreferences.ProxyUri.Replace("http://", "").Replace("https://", "");
                 proxyAuthArgs = $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
             }
-
-            string proxyLogText = $"| Url: {downloaderPreferences.ProxyUri}@{downloaderPreferences.ProxyUsername}";
-            logger.LogInformation($"{DateTime.Now} | Use Download Proxy: {downloaderPreferences.UseProxy} {( downloaderPreferences.UseProxy ? proxyLogText : "" )}");
 
             args = $"-y {( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} -i \"{streamUrl}\" -acodec copy -vcodec copy -sn \"{filePath}\" -f matroska";
 
@@ -350,8 +356,10 @@ namespace ProxyMov_DownloadServer.Services
             if (string.IsNullOrEmpty(stdOut))
                 return TimeSpan.Zero;
 
-            logger.LogInformation($"{DateTime.Now} | Found stream duration on attempt: {attemptCount}");
-            return TimeSpan.Parse(stdOut);
+            if(TimeSpan.TryParse(stdOut, out TimeSpan duration))
+                return duration;
+
+            return TimeSpan.Zero;
         }
 
         private static async Task<TimeSpan> GetStreamDurationFromFile(string filePath)

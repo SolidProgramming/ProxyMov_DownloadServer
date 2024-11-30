@@ -100,12 +100,7 @@ namespace ProxyMov_DownloadServer.Classes
             logger.LogInformation($"{DateTime.Now} | {CronJobState}");
 
             if (CronJobState != CronJobState.WaitForNextCycle)
-            {
-                logger.LogInformation($"{DateTime.Now} | {InfoMessage.CronJobRunning}");
-                CronJobErrorEvent?.Invoke(MessageType.Info, InfoMessage.CronJobRunning);
-
                 return;
-            }
 
             SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
@@ -236,6 +231,10 @@ namespace ProxyMov_DownloadServer.Classes
                         CronJobErrorEvent?.Invoke(MessageType.Secondary, logMessage);
                         continue;
                     }
+                    else
+                    {
+                        logger.LogInformation($"{DateTime.Now} | Stream Url: {m3u8Url}");
+                    }
 
                     episodeDownload.Download.Name = $"{originalEpisodeName.GetValidFileName()}[{language}]";
 
@@ -346,8 +345,6 @@ namespace ProxyMov_DownloadServer.Classes
                 Args = ["--no-sandbox", ( downloaderPreferences.UseProxy ? $"--proxy-server={downloaderPreferences.ProxyUri}" : "" )]
             });
 
-            string proxyLogText = $"| Url: {downloaderPreferences.ProxyUri}@{downloaderPreferences.ProxyUsername}";
-            logger.LogInformation($"{DateTime.Now} | Use Proxy: {downloaderPreferences.UseProxy} {( downloaderPreferences.UseProxy ? proxyLogText : "" )}");
 
             using IPage? page = await Browser.NewPageAsync();
 
@@ -362,21 +359,12 @@ namespace ProxyMov_DownloadServer.Classes
 
             try
             {
-                string? videoPageHtml = await GetVideoPageHtml(page, streamUrl);
+                string? videoPageHtml = await GetPageHtml(page, streamUrl);
 
                 if (string.IsNullOrEmpty(videoPageHtml))
                     return default;
 
-                TryGetVideoSource(videoPageHtml, out string? m3u8);
-
-                string atob = $"atob(\"{m3u8}\")";
-
-                System.Text.Json.JsonElement? source = await page.EvaluateExpressionAsync(atob);
-
-                if (source != null && source.HasValue)
-                    return source.Value.GetString();
-
-                return default;
+                return await GetVideoSource(page, videoPageHtml);
             }
             catch (Exception ex)
             {
@@ -390,80 +378,54 @@ namespace ProxyMov_DownloadServer.Classes
             }
         }
 
-        private bool TryGetVideoSource(string html, out string? m3u8)
+        private async Task<string?> GetVideoSource(IPage page, string html)
         {
-            m3u8 = default;
-
             HtmlDocument htmlDocument = new();
             htmlDocument.LoadHtml(html);
+
+            Match hlsMatch = new Regex("'hls': '((?'DN'https://delivery-node)?.*?)',").Match(html);
+
+            if (hlsMatch.Success)
+            {
+                if (hlsMatch.Groups["DN"].Success)
+                    return HttpUtility.HtmlDecode(hlsMatch.Groups[1].Value);
+
+                return await ExtractHLSViaJS(page, hlsMatch.Groups[1].Value);
+            }
 
             Match m3u8NodeMatch = new Regex("https://delivery-node-(.*?)\\);").Match(html);
 
             if (m3u8NodeMatch.Success)
-            {
-                m3u8 = HttpUtility.HtmlDecode(m3u8NodeMatch.Value.TrimEnd('"', ')', ';'));
-                return true;
-            }
-
-            Match hlsMatch = new Regex("'hls': '(.*?)',").Match(html);
-
-            if (hlsMatch.Success)
-            {
-                m3u8 = HttpUtility.HtmlDecode(hlsMatch.Groups[1].Value);
-                return true;
-            }
+                return HttpUtility.HtmlDecode(m3u8NodeMatch.Value.TrimEnd('"', ')', ';'));
 
             Match sourceMatch = new Regex("<source src=\"(.*?)\" type=\"application/x-mpegurl\" data-vds=\"\">").Match(html);
 
-            if (sourceMatch.Success)
-            {
-                m3u8 = HttpUtility.HtmlDecode(sourceMatch.Groups[1].Value);
-                return true;
-            }
-
+            if (sourceMatch.Success)            
+                return HttpUtility.HtmlDecode(sourceMatch.Groups[1].Value);
+            
             Match playerSourceMatch = new Regex("<source src=\"(.*?)\"").Match(html);
 
             if (playerSourceMatch.Success)
-            {
-                m3u8 = HttpUtility.HtmlDecode(playerSourceMatch.Groups[1].Value);
-                return true;
-            }
+                return HttpUtility.HtmlDecode(playerSourceMatch.Groups[1].Value);
 
-            logger.LogWarning($"{DateTime.Now} | Could not fetch any video source!");
-
-            return false;
+            return null;
         }
 
-        private async Task<string?> GetVideoPageHtml(IPage page, string streamUrl)
+        private async Task<string?> ExtractHLSViaJS(IPage page, string source)
         {
-            logger.LogInformation($"{DateTime.Now} | Trying to fetch stream m3u8...");
+            string atob = $"atob(\"{source}\")";
 
-            List<string> selectorChain = [
-               "button.plyr__control.plyr__control--overlaid",
-               "media-play-button>img",
-               "#player > button"
-            ];
+            System.Text.Json.JsonElement? jsonElement = await page.EvaluateExpressionAsync(atob);
 
-            await page.GoToAsync(streamUrl);
+            if (jsonElement != null && jsonElement.HasValue)
+                return jsonElement.Value.GetString();
 
-            List<Task<(bool, string?)>> selectorTasks = [];
-            CancellationTokenSource cts = new();
-            CancellationToken token = cts.Token;
+            return null;
+        }
 
-            foreach (string selector in selectorChain)
-            {
-                selectorTasks.Add(TryWaitForSelectorAsync(page, selector, cancellationToken: token));
-            }
-
-            Task<(bool, string?)> result = await Task.WhenAny(selectorTasks);
-
-            (bool foundSelector, string? successSelector) = await result;
-
-            if (foundSelector)
-                cts.Cancel();
-
-            if (!foundSelector || string.IsNullOrEmpty(successSelector))
-                return default;
+        private async Task<string?> GetPageHtml(IPage page, string pageUrl)
+        {
+            await page.GoToAsync(pageUrl);
 
             return await page.GetContentAsync();
         }

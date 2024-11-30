@@ -5,95 +5,27 @@
         {
             string seriesName = group.First().Download.Name;
             var seasonGroups = group.GroupBy(_ => _.Download.Season);
-            <h5 class="d-inline-block me-2">
+            <div class="d-inline-block me-2 mb-2">
                 <HxBadge CssClass="px-3 pt-2 pb-2" Color="ThemeColor.Secondary">
-                    <div class="d-block">
-                        <span class="d-block mb-2 text-warning">@seriesName</span>
-                        <div class="d-flex justify-content-center">
-                            @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
-                            {
-                                <HxBadge CssClass="d-inline-block px-3 mx-1" Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
-                                    @($"S{group2.Key:D2}")
-                                </HxBadge>
-                            }
-                        </div>
-                    </div>
-                </HxBadge>
-            </h5>
-        }        
-    </div>
-    <div class="container mt-5 text-center">
-        @foreach (IGrouping<string, EpisodeDownloadModel> group in GetGroupedDownloads())
-        {
-            string seriesName = group.First().Download.Name;
-            var seasonGroups = group.GroupBy(_ => _.Download.Season);
-            <h5 class="d-inline-block me-2">
-                <HxBadge CssClass="px-3 pt-2 pb-2" Color="ThemeColor.Secondary">
-                    <div class="d-block">
-                        <span class="d-block mb-2 pb-2 text-warning border-bottom border-2 border-dark-subtle mx-1">@seriesName</span>
-                        <div class="d-flex justify-content-center">
-                            @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
-                            {
-                                <HxBadge CssClass="d-inline-block px-3 mx-1" Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
-                                    @($"S{group2.Key:D2}")
-                                </HxBadge>
-                            }
-                        </div>
-                    </div>
-                </HxBadge>
-            </h5>
-        }
-    </div>
-    <div class="container mt-5 text-center">
-        @foreach (IGrouping<string, EpisodeDownloadModel> group in GetGroupedDownloads())
-        {
-            string seriesName = group.First().Download.Name;
-            var seasonGroups = group.GroupBy(_ => _.Download.Season);
-            <h5 class="d-inline-block me-2">
-                <HxBadge CssClass="px-3 pt-2 pb-2" Color="ThemeColor.Secondary">
-                    <div class="d-block">
+                    <div class="d-block" style="min-width: 250px">
                         <h5>
                             <HxBadge CssClass="w-100 py-2" Type="BadgeType.RoundedPill" Color="ThemeColor.Warning">
-                                @seriesName
+                                <span class="pe-3 align-middle">@seriesName</span>
+                                <HxIcon CssClass="text-danger float-end fs-5" Icon="BootstrapIcon.XCircle"></HxIcon>
                             </HxBadge>
                         </h5>
                         <div class="d-flex justify-content-center">
                             @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
                             {
-                                <HxBadge CssClass="d-inline-block px-3 mx-1" Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
-                                    @($"S{group2.Key:D2}")
+                                <HxBadge style="font-size: 15px" CssClass="d-inline-block px-3 mx-1" Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
+                                    <span class="pe-3">@($"S{group2.Key:D2}")</span>
+                                    <HxIcon CssClass="text-danger float-end" Icon="BootstrapIcon.XCircle"></HxIcon>
                                 </HxBadge>
                             }
                         </div>
                     </div>
                 </HxBadge>
-            </h5>
-        }
-    </div>
-    <div class="container mt-5 text-center">
-        @foreach (IGrouping<string, EpisodeDownloadModel> group in GetGroupedDownloads())
-        {
-            string seriesName = group.First().Download.Name;
-            var seasonGroups = group.GroupBy(_ => _.Download.Season);
-            <h5 class="d-inline-block me-2">
-                <HxBadge CssClass="px-3 pt-2 pb-2" Color="ThemeColor.Secondary">
-                    <div class="d-block">
-                        <h5>
-                            <HxBadge CssClass="w-100 py-2" Type="BadgeType.RoundedPill" Color="ThemeColor.Success">
-                                @seriesName
-                            </HxBadge>
-                        </h5>
-                        <div class="d-flex justify-content-center">
-                            @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
-                            {
-                                <HxBadge CssClass="d-inline-block px-3 mx-1" Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
-                                    @($"S{group2.Key:D2}")
-                                </HxBadge>
-                            }
-                        </div>
-                    </div>
-                </HxBadge>
-            </h5>
+            </div>
         }
     </div>
 }
@@ -101,27 +33,6 @@
 @code {
     private List<EpisodeDownloadModel>? Downloads { get; set; } = [];
     private CronJobState CronJobState = CronJobState.WaitForNextCycle;
-
-    private List<EpisodeDownloadModel>? MockDownloads { get; set; } = new()
-    {
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Jujutsu Kaisen", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Jujutsu Kaisen", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Jujutsu Kaisen", Season = 3, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Mushoku Tensei: Jobless Reincarnation", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Mushoku Tensei: Jobless Reincarnation", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Date a Live", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Date a Live", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Black Clover", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Black Clover", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Beyblade X", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Beyblade X", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Beyblade Y", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Beyblade Y", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Beyblade Z", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "Beyblade Z", Season = 2, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "The Eminence in Shadow", Season = 1, Episode = 1 } },
-        new EpisodeDownloadModel(){ Download =  new DownloadModel() {  Name = "The Eminence in Shadow", Season = 2, Episode = 1 } },
-    };
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -163,6 +74,6 @@
 
     private IEnumerable<IGrouping<string, EpisodeDownloadModel>> GetGroupedDownloads()
     {
-        return MockDownloads.GroupBy(_ => _.Download.Name);
+        return Downloads.GroupBy(_ => _.Download.Name).Take(5);
     }
 }

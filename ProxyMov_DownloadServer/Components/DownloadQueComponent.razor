@@ -21,8 +21,7 @@
             <tbody>
                 @if (Downloads is not null)
                 {
-                    int i = 1;
-
+                    int i = 1;                    
                     @foreach (EpisodeDownloadModel download in Downloads.Take(VisibleQueueEntriesCount))
                     {
                         @if (i == 1)

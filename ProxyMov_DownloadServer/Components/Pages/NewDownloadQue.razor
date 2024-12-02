@@ -1,0 +1,60 @@
+﻿@attribute [Route("/downloads")]
+@inject IApiService ApiService
+
+@if (Downloads is not null)
+{
+    @foreach (IGrouping<int, EpisodeDownloadModel> group in Downloads)
+    {
+        string seriesName = group.First().Download.Name;
+        var seasonGroups = group.GroupBy(_ => _.Download.Season);
+        <div class="row mb-3">
+            <h5>
+                <HxBadge CssClass="w-100 py-2" Type="BadgeType.RoundedPill" Color="ThemeColor.Warning">
+                    <div class="d-inline-block align-middle">
+                        <span>@seriesName</span>
+                        <HxProgress Height="7" CssClass="mt-1">
+                            <HxProgressBar Value="25" Color="ThemeColor.Success" />
+                        </HxProgress>
+                    </div>             
+                </HxBadge>                
+            </h5>
+            <div class="d-flex justify-content-center">
+                @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
+                {
+                    var seasonEpisodes = group2.GroupBy(_ => _.Download);
+                    <div class="text-center bg-dark-subtle mx-1 pt-2 px-2 rounded">
+                        <HxBadge CssClass="fs-6" Type="BadgeType.RoundedPill" Color="ThemeColor.Warning">
+                            <span>@($"S{group2.Key:D2}")</span>
+                            <HxBadge CssClass="ms-4" Type="BadgeType.Regular" Color="ThemeColor.Secondary">
+                                <span>x@(seasonEpisodes.Count())</span>
+                            </HxBadge>
+                        </HxBadge>
+                        <div>
+                            <HxButton Size="ButtonSize.Small" Color="ThemeColor.Secondary" Icon="BootstrapIcon.Flag"></HxButton>
+                            <HxButton Size="ButtonSize.Small" CssClass="my-2" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                            <HxButton Size="ButtonSize.Small" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    IEnumerable<IGrouping<int, EpisodeDownloadModel>>? Downloads;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            IEnumerable<EpisodeDownloadModel>? downloads = await ApiService.GetAsync<IEnumerable<EpisodeDownloadModel>?>("getDownloads");
+
+            if (downloads is null)
+                return;
+
+            Downloads = downloads.GroupBy(_ => _.Download.SeriesId);
+            StateHasChanged();
+        }
+    }
+}

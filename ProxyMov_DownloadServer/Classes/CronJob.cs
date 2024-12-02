@@ -400,9 +400,9 @@ namespace ProxyMov_DownloadServer.Classes
 
             Match sourceMatch = new Regex("<source src=\"(.*?)\" type=\"application/x-mpegurl\" data-vds=\"\">").Match(html);
 
-            if (sourceMatch.Success)            
+            if (sourceMatch.Success)
                 return HttpUtility.HtmlDecode(sourceMatch.Groups[1].Value);
-            
+
             Match playerSourceMatch = new Regex("<source src=\"(.*?)\"").Match(html);
 
             if (playerSourceMatch.Success)

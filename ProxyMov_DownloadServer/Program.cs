@@ -15,7 +15,7 @@ using System.Runtime.InteropServices;
 using Toolbelt.Blazor.Extensions.DependencyInjection;
 using Toolbelt.Blazor.I18nText;
 
-const string hostUrl = "http://localhost:8080";
+const string hostUrl = "http://[::]:8181";
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 

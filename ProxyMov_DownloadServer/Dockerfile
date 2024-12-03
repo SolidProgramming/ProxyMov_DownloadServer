@@ -8,9 +8,8 @@ RUN mkdir -p /data/downloads && chmod -R 777 /data/downloads
 RUN mkdir -p /app/appdata && chmod -R 777 /app/appdata
 USER 1000:100
 WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
-
+EXPOSE 8181
+ENV ASPNETCORE_URLS=http://*:8181
 
 # Diese Stufe wird zum Erstellen des Dienstprojekts verwendet.
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build

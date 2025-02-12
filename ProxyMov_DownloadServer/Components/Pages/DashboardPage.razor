@@ -45,7 +45,101 @@
     </BodyTemplate>
 </HxModal>
 <div class="container-lg">
-    <div class="d-none d-md-block mt-4">
+    <div class="d-flex justify-content-center gap-2 mb-3">
+        <HxButton Enabled="@(ConverterState == ConverterState.Downloading && StopConverterButtonEnabled)" Color="ThemeColor.Warning" Icon="BootstrapIcon.StopFill" OnClick="StopConverter"></HxButton>
+        <HxButton Spinner="CheckDownloadsButtonSpinner" Enabled="CheckDownloadsButtonEnabled" OnClick="CheckForDownloads" Color="ThemeColor.Success" Icon="BootstrapIcon.ArrowClockwise"></HxButton>
+    </div>
+
+    @if (Downloads is not null)
+    {
+        @foreach ((int index, IGrouping<int, EpisodeDownloadModel> group) in Downloads.Index())
+        {
+            string seriesName = group.First().Download.Name;
+            var seasonGroups = group.GroupBy(_ => _.Download.Season);
+            <div class="row mb-5">
+                <h4>
+                    <HxBadge CssClass="w-100 py-2" Type="BadgeType.RoundedPill" Color="ThemeColor.Warning">
+                        <div class="d-inline-block pe-4">
+                            @if (ConvertProgress is not null && SmoothedETA.TotalSeconds > 0 && index == 0)
+                            {
+                                <HxIcon CssClass="me-2" Icon="BootstrapIcon.ClockFill" />
+                                @($"{SmoothedETA.Minutes:00}:{SmoothedETA.Seconds:00}")
+                            }
+                            else if(index == 0)
+                            {
+                                <HxIcon Icon="BootstrapIcon.ClockFill" />
+                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                            }
+                        </div>
+                        <div class="d-inline-block align-middle">
+                            <span>@seriesName</span>
+                            @if (ConvertProgress is not null && Download is not null && group.First().Download.SeriesId == Download.SeriesId)
+                            {
+                                <HxProgress Height="8" CssClass="mt-1">
+                                    <HxProgressBar Value="ConvertProgress.ProgressPercent" Color="ThemeColor.Success" />
+                                </HxProgress>
+                            }
+                            else if(index == 0)
+                            {
+                                <HxProgress Height="8" CssClass="mt-1">
+                                    <HxProgressBar Value="0" Color="ThemeColor.Success" />
+                                </HxProgress>
+                            }else{
+                                <div class="my-2" />
+                            }
+                            <div class="d-block mt-1">
+                                @if (Download is not null)
+                                {
+                                    bool hasStopMark = Download == CronJob.StopMarkDownload?.Download;
+                                    <HxButton OnClick="@(() => ToggleStopMark())" Color="@(hasStopMark ? ThemeColor.Info : ThemeColor.Secondary)" Icon="@(hasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)" Size="ButtonSize.Small"></HxButton>
+                                    <HxButton Size="ButtonSize.Small" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                                    <HxButton Size="ButtonSize.Small" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
+                                }
+                                else
+                                {
+                                    <HxButton Size="ButtonSize.Small" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                                    <HxButton Size="ButtonSize.Small" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
+                                }
+
+                            </div>
+                        </div>
+                        <div class="d-inline-block ps-4">
+                            @if (ConvertProgress is not null && index == 0)
+                            {
+                                @(GetAdjustedDownloadSpeed(ConvertProgress))
+                                <HxIcon CssClass="ms-2" Icon="BootstrapIcon.LightningChargeFill" />
+                            }
+                            else if(index == 0)
+                            {
+                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                                <HxIcon Icon="BootstrapIcon.LightningChargeFill" />
+                            }                            
+                        </div>
+                    </HxBadge>
+                </h4>
+                <div class="d-flex justify-content-center">
+                    @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
+                    {
+                        var seasonEpisodes = group2.GroupBy(_ => _.Download);
+                        <div class="text-center bg-dark-subtle mx-1 pt-2 px-2 rounded">
+                            <HxBadge CssClass="fs-6" Type="BadgeType.RoundedPill" Color="ThemeColor.Warning">
+                                <span>@($"S{group2.Key:D2}")</span>
+                                <HxBadge CssClass="ms-4" Type="BadgeType.Regular" Color="ThemeColor.Secondary">
+                                    <span>x@(seasonEpisodes.Count())</span>
+                                </HxBadge>
+                            </HxBadge>
+                            <div>
+                                <HxButton Size="ButtonSize.Small" Color="ThemeColor.Secondary" Icon="BootstrapIcon.Flag"></HxButton>
+                                <HxButton Size="ButtonSize.Small" CssClass="my-2" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                                <HxButton Size="ButtonSize.Small" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+    @*  <div class="d-none d-md-block mt-4">
         <div style="overflow-y: auto;">
             <table class="table">
                 <thead>
@@ -363,9 +457,9 @@
                 </h5>
             }
         </div>
-    </div>
-    <DownloadSkipperComponent></DownloadSkipperComponent>
-    <DownloadQueComponent OnDownloadSkippOrRemove="@OnDownloadSkipped"></DownloadQueComponent>
+    </div> *@
+    @* <DownloadSkipperComponent></DownloadSkipperComponent> *@
+    @* <DownloadQueComponent OnDownloadSkippOrRemove="@OnDownloadSkipped"></DownloadQueComponent> *@
 </div>
 
 
@@ -403,9 +497,18 @@
     private SettingsModel? Settings;
     private bool ShowDownloadPathError { get; set; }
 
+    IEnumerable<IGrouping<int, EpisodeDownloadModel>>? Downloads;
+
     protected override async Task OnInitializedAsync()
     {
         LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
+
+        IEnumerable<EpisodeDownloadModel>? downloads = await ApiService.GetAsync<IEnumerable<EpisodeDownloadModel>?>("getDownloads");
+
+        if (downloads is null)
+            return;
+
+        Downloads = downloads.GroupBy(_ => _.Download.SeriesId);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -548,6 +651,13 @@
         }
 
         Download = ConverterService.GetDownload();
+        List<EpisodeDownloadModel>? nonGroupedDownloadQue = CronJob.DownloadQue?.ToList().Except(CronJob.SkippedDownloads).ToList();
+
+        if (nonGroupedDownloadQue is not null && nonGroupedDownloadQue.Any())
+        {
+            Downloads = nonGroupedDownloadQue.GroupBy(_ => _.Download.SeriesId);
+        }
+
         SetDownloadCounters();
 
         switch (CronJobState)

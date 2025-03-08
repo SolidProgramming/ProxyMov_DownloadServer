@@ -152,24 +152,6 @@
     private VideoCodec SelectedVideoCodec { get; set; }
     private AudioCodec SelectedAudioCodec { get; set; }
 
-    private bool FileFormatNoChange { get; set; }
-    private bool FileFormatMKV { get; set; }
-    private bool FileFormatMP4 { get; set; }
-    private bool FileFormatFLV { get; set; }
-
-    private bool VideoCodecNoChange { get; set; }
-    private bool VideoCodecVP8 { get; set; }
-    private bool VideoCodecVP9 { get; set; }
-    private bool VideoCodecH264 { get; set; }
-    private bool VideoCodecH264NVENC { get; set; }
-    private bool VideoCodecH265 { get; set; }
-    private bool VideoCodecMPEG4 { get; set; }
-
-    private bool AudioCodecNoChange { get; set; }
-    private bool AudioCodecAAC { get; set; }
-    private bool AudioCodecAC3 { get; set; }
-    private bool AudioCodecMP3 { get; set; }
-
     protected override async Task OnInitializedAsync()
     {
         LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
@@ -250,6 +232,12 @@
 
     private IEnumerable<T> GetEnumData<T>()
     {
+        bool isContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+
+        if (isContainer && typeof(T) == typeof(VideoCodec))
+            return ( (IEnumerable<T>)Enum.GetValuesAsUnderlyingType(typeof(T)) ).Where(_ => !_!.ToString()!.ToVideoCodec().Equals(VideoCodec.H264NVENC) &&
+                                                                                                !_.ToString()!.ToVideoCodec().Equals(VideoCodec.H265));
+
         return (IEnumerable<T>)Enum.GetValuesAsUnderlyingType(typeof(T));
     }
 }

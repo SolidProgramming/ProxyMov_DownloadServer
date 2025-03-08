@@ -79,7 +79,16 @@ namespace ProxyMov_DownloadServer.Misc
 
         internal static VideoCodec ToVideoCodec(this string vc)
         {
-            return VideoCodecsCollection.Single(x => x.Value == vc).Key;
+            if (VideoCodecsCollection.ContainsValue(vc))
+            {
+                return VideoCodecsCollection.Single(x => x.Value == vc).Key;
+            }
+            else if (Enum.TryParse(vc, out VideoCodec codec) && VideoCodecsCollection.ContainsKey(codec))
+            {
+                return codec;
+            }
+
+            return VideoCodec.ORIGINAL;
         }
 
         internal static string ToAudioCodec(this AudioCodec ac)

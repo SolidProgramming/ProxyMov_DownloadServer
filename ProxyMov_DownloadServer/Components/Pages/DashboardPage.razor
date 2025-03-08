@@ -14,6 +14,7 @@
 @inject IHostApplicationLifetime AppLifetime
 @inject IQuartzService QuartzService
 @inject Toolbelt.Blazor.I18nText.I18nText I18nText
+@inject IUpdateService UpdateService
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -450,9 +451,13 @@
 
             SetDownloadCounters();
             HandleCronJobState();
-        }
 
-        //RenderHelper.ComponentSetRendered(base.ToString()!);
+            if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+            {
+                string assemblyVersion = typeof(Program).Assembly.GetName().Version.ToString();
+                await UpdateService.CheckForUpdates(assemblyVersion);
+            }
+        }
     }
 
     private void RefreshCycleTime(Object? source, System.Timers.ElapsedEventArgs e)

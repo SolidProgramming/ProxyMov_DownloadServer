@@ -111,6 +111,12 @@ namespace ProxyMov_DownloadServer.Classes
                 return;
             }
 
+            if (settings.ConverterSettings is null)
+            {
+                settings.ConverterSettings = new();
+                SettingsHelper.SaveSettings(settings);
+            }
+
             SetCronJobState(CronJobState.CheckingForDownloads);
 
             DownloaderPreferencesModel? downloaderPreferences = await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences");

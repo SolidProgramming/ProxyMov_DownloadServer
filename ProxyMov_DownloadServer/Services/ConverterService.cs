@@ -123,12 +123,18 @@ namespace ProxyMov_DownloadServer.Services
             string hwAccell = "-hwaccel cuvid -hwaccel_output_format cuda";
             bool useHwAccell = false;
 
-            if (converterSettings is not null && ( converterSettings.VideoCodec == VideoCodec.H265 || converterSettings.VideoCodec == VideoCodec.H264NVENC ))
+            if (converterSettings is not null)
             {
-                useHwAccell = true;
+                if (converterSettings.VideoCodec == VideoCodec.H265 || converterSettings.VideoCodec == VideoCodec.H264NVENC)
+                {
+                    useHwAccell = true;
+                }
+                args = $"-y {( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} {( useHwAccell ? hwAccell : "" )} -i \"{streamUrl}\" -acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
             }
-
-            args = $"-y {( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} {( useHwAccell ? hwAccell : "" )} -i \"{streamUrl}\" -acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
+            else
+            {
+                logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettings}");
+            }
 
             string binPath = Helper.GetFFMPEGPath();
 
@@ -215,7 +221,7 @@ namespace ProxyMov_DownloadServer.Services
 
             string filePath = $"{download.Name}_{seasonFolderName}{episodeFolderName}.ts";
 
-            if (converterSettings is not null)
+            if (converterSettings is not null && converterSettings.FileFormat != FileFormat.ORIGINAL)
             {
                 string filePathWithExtension = Path.ChangeExtension(filePath, converterSettings.FileFormat.ToFileFormat());
 

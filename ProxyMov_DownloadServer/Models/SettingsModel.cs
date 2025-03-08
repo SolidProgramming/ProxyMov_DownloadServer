@@ -13,5 +13,7 @@ namespace ProxyMov_DownloadServer.Models
         [JsonProperty("DownloadPath")]
         public string? DownloadPath { get; set; } = default!;
 
+        [JsonProperty("ConverterSettings")]
+        public ConverterSettingsModel? ConverterSettings { get; set; }
     }
 }

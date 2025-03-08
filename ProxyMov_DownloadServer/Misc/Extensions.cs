@@ -5,6 +5,60 @@ namespace ProxyMov_DownloadServer.Misc
 {
     internal static class Extensions
     {
+        private static Dictionary<FileFormat, string> FileFormatsCollection = new()
+        {
+            { FileFormat.MKV, "matroska" },
+            { FileFormat.FLV, "flv" },
+            { FileFormat.ORIGINAL, "copy" },
+            { FileFormat.MP4, "mp4" }
+        };
+
+        private static Dictionary<FileFormat, string> FileFormatsNameCollection = new()
+        {
+            { FileFormat.MKV, "mkv" },
+            { FileFormat.FLV, "flv" },
+            { FileFormat.ORIGINAL, "original" },
+            { FileFormat.MP4, "mp4" }
+        };
+
+        private static Dictionary<VideoCodec, string> VideoCodecsCollection = new()
+        {
+            { VideoCodec.H264, "h264" },
+            { VideoCodec.H264NVENC, "h264_nvenc" },
+            { VideoCodec.H265, "hevc_nvenc" },
+            { VideoCodec.MPEG4, "mpeg4" },
+            { VideoCodec.VP8, "vp8" },
+            { VideoCodec.VP9, "vp9" },
+            { VideoCodec.ORIGINAL, "copy" }
+        };
+
+        private static Dictionary<VideoCodec, string> VideoCodecsNameCollection = new()
+        {
+            { VideoCodec.H264, "h264" },
+            { VideoCodec.H264NVENC, "h264 nvenc" },
+            { VideoCodec.H265, "h265 nvenc" },
+            { VideoCodec.MPEG4, "mpeg4" },
+            { VideoCodec.VP8, "vp8" },
+            { VideoCodec.VP9, "vp9" },
+            { VideoCodec.ORIGINAL, "original" }
+        };
+
+        private static Dictionary<AudioCodec, string> AudioCodecsCollection = new()
+        {
+            { AudioCodec.AAC, "aac" },
+            { AudioCodec.AC3, "ac3" },
+            { AudioCodec.MP3, "mp3" },
+            { AudioCodec.ORIGINAL, "copy" }
+        };
+
+        private static Dictionary<AudioCodec, string> AudioCodecsNameCollection = new()
+        {
+            { AudioCodec.AAC, "aac" },
+            { AudioCodec.AC3, "ac3" },
+            { AudioCodec.MP3, "mp3" },
+            { AudioCodec.ORIGINAL, "original" }
+        };
+
         private static Dictionary<Language, string> VOELanguageKeyCollection = new()
         {
             { Language.GerDub, "1"},
@@ -13,6 +67,57 @@ namespace ProxyMov_DownloadServer.Misc
             { Language.EngDub, "2"},
             { Language.EngSub, "2"},
         };
+
+        internal static string ToVideoCodec(this VideoCodec vc)
+        {
+            return VideoCodecsCollection[vc];
+        }
+        internal static string ToVideoCodecName(this VideoCodec vc)
+        {
+            return VideoCodecsNameCollection[vc];
+        }
+
+        internal static VideoCodec ToVideoCodec(this string vc)
+        {
+            return VideoCodecsCollection.Single(x => x.Value == vc).Key;
+        }
+
+        internal static string ToAudioCodec(this AudioCodec ac)
+        {
+            return AudioCodecsCollection[ac];
+        }
+
+        internal static string ToAudioCodecName(this AudioCodec ac)
+        {
+            return AudioCodecsNameCollection[ac];
+        }
+
+        internal static AudioCodec ToAudioCodec(this string ac)
+        {
+            return AudioCodecsCollection.Single(x => x.Value == ac).Key;
+        }
+
+        internal static string ToFileFormat(this FileFormat ff)
+        {
+            if (ff == FileFormat.MKV)
+                return "mkv";
+
+            return FileFormatsCollection[ff];
+        }
+
+        internal static string ToFileFormatName(this FileFormat ff)
+        {
+            return FileFormatsNameCollection[ff];
+        }
+
+        internal static FileFormat ToFileFormat(this string ff)
+        {
+            if (ff == "mkv")
+            {
+                return FileFormat.MKV;
+            }
+            return FileFormatsCollection.Single(x => x.Value == ff).Key;
+        }
 
         internal static string GetValidFileName(this string name)
         {
@@ -45,7 +150,7 @@ namespace ProxyMov_DownloadServer.Misc
         {
             ReadOnlySpan<char> textAsSpan = text.AsSpan();
             Span<char> span = new(new char[textAsSpan.Length * n]);
-            for (var i = 0; i < n; i++)
+            for (int i = 0; i < n; i++)
             {
                 textAsSpan.CopyTo(span.Slice(i * textAsSpan.Length, textAsSpan.Length));
             }

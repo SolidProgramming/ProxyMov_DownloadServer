@@ -74,7 +74,7 @@ namespace ProxyMov_DownloadServer.Services
             }
         }
 
-        public async Task<CommandResultExt?> StartDownload(string streamUrl, DownloadModel download, string downloadPath, DownloaderPreferencesModel downloaderPreferences)
+        public async Task<CommandResultExt?> StartDownload(string streamUrl, DownloadModel download, string downloadPath, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings)
         {
             if (!IsInitialized)
             {
@@ -82,7 +82,7 @@ namespace ProxyMov_DownloadServer.Services
                 return default;
             }
 
-            string filePath = GetFileName(download, downloadPath);
+            string filePath = GetFileName(download, downloadPath, converterSettings);
 
             TimeSpan streamDuration = await GetStreamDuration(streamUrl, downloaderPreferences);
 
@@ -120,7 +120,15 @@ namespace ProxyMov_DownloadServer.Services
                 proxyAuthArgs = $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
             }
 
-            args = $"-y {( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} -i \"{streamUrl}\" -acodec copy -vcodec copy -sn \"{filePath}\" -f matroska";
+            string hwAccell = "-hwaccel cuvid -hwaccel_output_format cuda";
+            bool useHwAccell = false;
+
+            if (converterSettings is not null && ( converterSettings.VideoCodec == VideoCodec.H265 || converterSettings.VideoCodec == VideoCodec.H264NVENC ))
+            {
+                useHwAccell = true;
+            }
+
+            args = $"-y {( downloaderPreferences.UseProxy ? proxyAuthArgs : "" )} {( useHwAccell ? hwAccell : "" )} -i \"{streamUrl}\" -acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
 
             string binPath = Helper.GetFFMPEGPath();
 
@@ -174,7 +182,7 @@ namespace ProxyMov_DownloadServer.Services
             return result;
         }
 
-        private static string GetFileName(DownloadModel download, string downloadPath)
+        private static string GetFileName(DownloadModel download, string downloadPath, ConverterSettingsModel? converterSettings)
         {
             string folderPath = "";
             string seriesFolderPath = "";
@@ -205,7 +213,16 @@ namespace ProxyMov_DownloadServer.Services
             if (!Directory.Exists(folderPath))
                 Directory.CreateDirectory(folderPath);
 
-            return Path.Combine(folderPath, $"{download.Name}_{seasonFolderName}{episodeFolderName}.mkv");
+            string filePath = $"{download.Name}_{seasonFolderName}{episodeFolderName}.ts";
+
+            if (converterSettings is not null)
+            {
+                string filePathWithExtension = Path.ChangeExtension(filePath, converterSettings.FileFormat.ToFileFormat());
+
+                return Path.Combine(folderPath, filePathWithExtension);
+            }
+
+            return Path.Combine(folderPath, filePath);
         }
 
         private static void ReadOutput(string output)
@@ -356,7 +373,7 @@ namespace ProxyMov_DownloadServer.Services
             if (string.IsNullOrEmpty(stdOut))
                 return TimeSpan.Zero;
 
-            if(TimeSpan.TryParse(stdOut, out TimeSpan duration))
+            if (TimeSpan.TryParse(stdOut, out TimeSpan duration))
                 return duration;
 
             return TimeSpan.Zero;

@@ -3,6 +3,6 @@
     internal interface IConverterService
     {
         bool Init();
-        Task<CommandResultExt?> StartDownload(string streamUrl, DownloadModel download, string downloadPath, DownloaderPreferencesModel downloaderPreferences);
+        Task<CommandResultExt?> StartDownload(string streamUrl, DownloadModel download, string downloadPath, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings);
     }
 }

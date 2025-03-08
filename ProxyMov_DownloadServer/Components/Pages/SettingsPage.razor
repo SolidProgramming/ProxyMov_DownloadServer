@@ -54,7 +54,7 @@
                     <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill" />
                     Damit die Proxy Einstellungen wirksam werden, bitte die Einstellungen speichern und den Server neustarten!
                 </HxAlert>
-            }            
+            }
             <div class="col-md-auto">
                 <div class="px-3 py-2">
                     <div class="my-2">
@@ -78,6 +78,59 @@
             </div>
         </div>
         <div class="row mt-4">
+            <div class="my-2">
+                <HxIcon CssClass="d-inline fs-5 text-primary" Icon="BootstrapIcon.FileBinary"></HxIcon>
+                <h5 class="d-inline px-2">Converter:</h5>
+            </div>
+            <div class="col-4 mt-3">
+                <div class="border rounded p-3">
+                    <h6 class="px-2 pb-3">Dateiformat:</h6>
+                    <HxRadioButtonList TItem="FileFormat"
+                                       TValue="FileFormat"
+                                       Data="GetEnumData<FileFormat>()"
+                                       @bind-Value="@SelectedFileFormat"
+                                       ItemTextSelector="@(ff => ff.ToFileFormatName().ToUpper())"
+                                       ItemValueSelector="@(ff => ff)"
+                                       CssClass="mt-2"
+                                       ItemCssClass="mt-2"
+                                       ItemTextCssClass="text-warning"
+                                       AutoSort="false" />
+                </div>
+            </div>
+            <div class="col-4 mt-3">
+                <div class="border rounded p-3">
+                    <h6 class="px-2">Video Codec:</h6>
+                    <small class="text-danger">Rekodieren notwendig!</small>
+                    <HxRadioButtonList TItem="VideoCodec"
+                                       TValue="VideoCodec"
+                                       Data="GetEnumData<VideoCodec>()"
+                                       @bind-Value="@SelectedVideoCodec"
+                                       ItemTextSelector="@(vc => vc.ToVideoCodecName().ToUpper())"
+                                       ItemValueSelector="@(vc => vc)"
+                                       CssClass="mt-2"
+                                       ItemCssClass="mt-2"
+                                       ItemTextCssClass="text-warning"
+                                       AutoSort="false" />
+                </div>
+            </div>
+            <div class="col-4 mt-3">
+                <div class="border rounded p-3">
+                    <h6 class="px-2">Audio Codec:</h6>
+                    <small class="text-danger">Rekodieren notwendig!</small>
+                    <HxRadioButtonList TItem="AudioCodec"
+                                       TValue="AudioCodec"
+                                       Data="GetEnumData<AudioCodec>()"
+                                       @bind-Value="@SelectedAudioCodec"
+                                       ItemTextSelector="@(ac => ac.ToAudioCodecName().ToUpper())"
+                                       ItemValueSelector="@(ac => ac)"
+                                       CssClass="mt-2"
+                                       ItemCssClass="mt-2"
+                                       ItemTextCssClass="text-warning"
+                                       AutoSort="false" />
+                </div>
+            </div>
+        </div>
+        <div class="row mt-4">
             <div class="col-6">
                 <HxSubmit Color="ThemeColor.Success" Icon="BootstrapIcon.Check" CssClass="w-100">@LangText["Save"]</HxSubmit>
             </div>
@@ -94,6 +147,28 @@
     private bool ProxySettingsChanged { get; set; }
     private string? DownloadPath { get; set; }
     private DownloaderPreferencesModel? DownloaderPreferences = new();
+
+    private FileFormat SelectedFileFormat { get; set; }
+    private VideoCodec SelectedVideoCodec { get; set; }
+    private AudioCodec SelectedAudioCodec { get; set; }
+
+    private bool FileFormatNoChange { get; set; }
+    private bool FileFormatMKV { get; set; }
+    private bool FileFormatMP4 { get; set; }
+    private bool FileFormatFLV { get; set; }
+
+    private bool VideoCodecNoChange { get; set; }
+    private bool VideoCodecVP8 { get; set; }
+    private bool VideoCodecVP9 { get; set; }
+    private bool VideoCodecH264 { get; set; }
+    private bool VideoCodecH264NVENC { get; set; }
+    private bool VideoCodecH265 { get; set; }
+    private bool VideoCodecMPEG4 { get; set; }
+
+    private bool AudioCodecNoChange { get; set; }
+    private bool AudioCodecAAC { get; set; }
+    private bool AudioCodecAC3 { get; set; }
+    private bool AudioCodecMP3 { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -123,6 +198,13 @@
 
             DownloadPath = settings.DownloadPath;
 
+            if (settings.ConverterSettings is not null)
+            {
+                SelectedFileFormat = settings.ConverterSettings.FileFormat;
+                SelectedVideoCodec = settings.ConverterSettings.VideoCodec;
+                SelectedAudioCodec = settings.ConverterSettings.AudioCodec;
+            }
+
             StateHasChanged();
         }
     }
@@ -140,6 +222,12 @@
         SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
         settings.DownloadPath = DownloadPath;
+        settings.ConverterSettings = new()
+            {
+                FileFormat = SelectedFileFormat,
+                VideoCodec = SelectedVideoCodec,
+                AudioCodec = SelectedAudioCodec,
+            };
 
         SettingsHelper.SaveSettings(settings);
 
@@ -151,12 +239,17 @@
     }
 
     private void OnProxySettingsChanged()
-    {       
+    {
         ProxySettingsChanged = true;
     }
 
     private void NavigateBack()
     {
         NavigationManager.NavigateTo(Routes.Dashboard);
+    }
+
+    private IEnumerable<T> GetEnumData<T>()
+    {
+        return (IEnumerable<T>)Enum.GetValuesAsUnderlyingType(typeof(T));
     }
 }

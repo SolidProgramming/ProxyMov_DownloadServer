@@ -38,7 +38,7 @@ namespace ProxyMov_DownloadServer.Classes
 
         public static async Task<bool> InitAsync(WebProxy? proxy = null)
         {
-            if (proxy is null)
+            if(proxy is null)
             {
                 HttpClient = HttpClientFactory.CreateHttpClient<CronJob>();
             }
@@ -52,10 +52,10 @@ namespace ProxyMov_DownloadServer.Classes
             (bool success, string? ipv4) = await HttpClient.GetIPv4();
             (bool noProxySuccess, string? NoProxyIpv4) = await noProxyHttpClient.GetIPv4();
 
-            if (!success || !noProxySuccess)
+            if(!success || !noProxySuccess)
                 return false;
 
-            if (ipv4 == NoProxyIpv4)
+            if(ipv4 == NoProxyIpv4)
                 return false;
 
             return true;
@@ -81,7 +81,7 @@ namespace ProxyMov_DownloadServer.Classes
 
         public async Task Execute(IJobExecutionContext context)
         {
-            if (!RegisteredShutdown)
+            if(!RegisteredShutdown)
             {
                 appLifetime.ApplicationStopping.Register(async () =>
                 {
@@ -99,19 +99,19 @@ namespace ProxyMov_DownloadServer.Classes
         {
             logger.LogInformation($"{DateTime.Now} | {CronJobState}");
 
-            if (CronJobState != CronJobState.WaitForNextCycle)
+            if(CronJobState != CronJobState.WaitForNextCycle)
                 return;
 
             SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
-            if (settings is null || string.IsNullOrEmpty(settings.DownloadPath) || string.IsNullOrEmpty(settings.ApiUrl))
+            if(settings is null || string.IsNullOrEmpty(settings.DownloadPath) || string.IsNullOrEmpty(settings.ApiUrl))
             {
                 logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettings}");
                 CronJobErrorEvent?.Invoke(MessageType.Error, ErrorMessage.ReadSettings);
                 return;
             }
 
-            if (settings.ConverterSettings is null)
+            if(settings.ConverterSettings is null)
             {
                 settings.ConverterSettings = new();
                 SettingsHelper.SaveSettings(settings);
@@ -127,7 +127,7 @@ namespace ProxyMov_DownloadServer.Classes
 
             IEnumerable<EpisodeDownloadModel>? downloads = await apiService.GetAsync<IEnumerable<EpisodeDownloadModel>?>("getDownloads");
 
-            if (downloads is null || !downloads.Any())
+            if(downloads is null || !downloads.Any())
             {
                 SetCronJobDownloads(0, 0);
                 SetCronJobState(CronJobState.WaitForNextCycle);
@@ -141,30 +141,30 @@ namespace ProxyMov_DownloadServer.Classes
             DownloadQue = downloads.EnqueueRange();
             ConverterService.CTS = new CancellationTokenSource();
 
-            while (DownloadQue!.Count != 0)
+            while(DownloadQue!.Count != 0)
             {
-                if (ConverterService.CTS is not null && ConverterService.CTS.IsCancellationRequested && !ConverterService.AbortIsSkip)
+                if(ConverterService.CTS is not null && ConverterService.CTS.IsCancellationRequested && !ConverterService.AbortIsSkip)
                     break;
 
                 EpisodeDownloadModel episodeDownload = DownloadQue.Dequeue();
 
-                if (SkippedDownloads.Contains(episodeDownload))
+                if(SkippedDownloads.Contains(episodeDownload))
                     continue;
 
                 SetCronJobDownloads(DownloadQue.Count, 0);
 
-                if (string.IsNullOrEmpty(episodeDownload.Download.Name))
+                if(string.IsNullOrEmpty(episodeDownload.Download.Name))
                     continue;
 
                 string originalEpisodeName = episodeDownload.Download.Name;
 
                 string url = "";
 
-                if (episodeDownload.StreamingPortal.Name == Hoster.STO.ToString())
+                if(episodeDownload.StreamingPortal.Name == Hoster.STO.ToString())
                 {
                     url = $"https://s.to/serie/stream{episodeDownload.Download.Path}/{string.Format(Globals.LinkBlueprint, episodeDownload.Download.Season, episodeDownload.Download.Episode)}";
                 }
-                else if (episodeDownload.StreamingPortal.Name == Hoster.AniWorld.ToString())
+                else if(episodeDownload.StreamingPortal.Name == Hoster.AniWorld.ToString())
                 {
                     url = $"https://aniworld.to/anime/stream{episodeDownload.Download.Path}/{string.Format(Globals.LinkBlueprint, episodeDownload.Download.Season, episodeDownload.Download.Episode)}";
                 }
@@ -177,7 +177,7 @@ namespace ProxyMov_DownloadServer.Classes
                 {
                     html = await HttpClient.GetStringAsync(url);
                 }
-                catch (HttpRequestException ex)
+                catch(HttpRequestException ex)
                 {
                     CronJobErrorEvent?.Invoke(MessageType.Error, ex.Message);
                     logger.LogError($"{DateTime.Now} | {ex.Message}");
@@ -185,7 +185,7 @@ namespace ProxyMov_DownloadServer.Classes
                     hasError = true;
                     continue;
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     CronJobErrorEvent?.Invoke(MessageType.Error, ex.Message);
                     logger.LogError($"{DateTime.Now} | {ex.Message}");
@@ -195,7 +195,7 @@ namespace ProxyMov_DownloadServer.Classes
                 }
                 finally
                 {
-                    if (hasError)
+                    if(hasError)
                     {
                         CronJobErrorEvent?.Invoke(MessageType.Warning, WarningMessage.DownloadNotRemoved);
                     }
@@ -203,7 +203,7 @@ namespace ProxyMov_DownloadServer.Classes
 
                 Dictionary<Language, List<string>>? languageRedirectLinks = HosterHelper.GetLanguageRedirectLinks(html);
 
-                if (languageRedirectLinks == null || languageRedirectLinks.Count == 0)
+                if(languageRedirectLinks == null || languageRedirectLinks.Count == 0)
                     continue;
 
                 episodeDownload.Download.Name = episodeDownload.Download.Name.GetValidFileName();
@@ -215,15 +215,15 @@ namespace ProxyMov_DownloadServer.Classes
 
                 int finishedDownloadsCount = 1;
 
-                foreach (Language language in downloadLanguages)
+                foreach(Language language in downloadLanguages)
                 {
                     SetCronJobDownloads(DownloadQue.Count, downloadLanguages.Count() - finishedDownloadsCount);
 
-                    if (episodeDownload.StreamingPortal.Name == Hoster.STO.ToString())
+                    if(episodeDownload.StreamingPortal.Name == Hoster.STO.ToString())
                     {
                         url = $"https://s.to{languageRedirectLinks[language][0]}";
                     }
-                    else if (episodeDownload.StreamingPortal.Name == Hoster.AniWorld.ToString())
+                    else if(episodeDownload.StreamingPortal.Name == Hoster.AniWorld.ToString())
                     {
                         url = $"https://aniworld.to{languageRedirectLinks[language][0]}";
                     }
@@ -231,7 +231,7 @@ namespace ProxyMov_DownloadServer.Classes
 
                     string? m3u8Url = await GetEpisodeM3U8(url, downloaderPreferences);
 
-                    if (string.IsNullOrEmpty(m3u8Url))
+                    if(string.IsNullOrEmpty(m3u8Url))
                     {
                         logMessage = $"Für \"{originalEpisodeName} | S{episodeDownload.Download.Season:D2} E{episodeDownload.Download.Episode:D2}\" wurde keine Video Source gefunden.";
                         CronJobErrorEvent?.Invoke(MessageType.Secondary, logMessage);
@@ -248,14 +248,14 @@ namespace ProxyMov_DownloadServer.Classes
 
                     finishedDownloadsCount++;
 
-                    if (result is not null && result.Skipped)
+                    if(result is not null && result.Skipped)
                     {
                         CronJobErrorEvent?.Invoke(MessageType.Secondary, InfoMessage.EpisodeDownloadSkipped);
 
                         continue;
                     }
 
-                    if (result is not null && result.SkippedNoResult)
+                    if(result is not null && result.SkippedNoResult)
                     {
                         CronJobErrorEvent?.Invoke(MessageType.Secondary, InfoMessage.EpisodeDownloadSkippedFileExists);
 
@@ -264,9 +264,9 @@ namespace ProxyMov_DownloadServer.Classes
                         continue;
                     }
 
-                    if (ConverterService.CTS is not null && ( result is null || !result.IsSuccess ))
+                    if(ConverterService.CTS is not null && (result is null || !result.IsSuccess))
                     {
-                        if (ConverterService.CTS.IsCancellationRequested)
+                        if(ConverterService.CTS.IsCancellationRequested)
                         {
                             logMessage = $"{WarningMessage.DownloadCanceled} {WarningMessage.DownloadNotRemoved}";
                             CronJobErrorEvent?.Invoke(MessageType.Warning, logMessage);
@@ -279,16 +279,16 @@ namespace ProxyMov_DownloadServer.Classes
                         }
                     }
 
-                    if (result is not null && result.IsSuccess)
+                    if(result is not null && result.IsSuccess)
                     {
                         CronJobErrorEvent?.Invoke(MessageType.Success, InfoMessage.DownloadFinished);
 
-                        if (finishedDownloadsCount >= downloadLanguages.Count())
+                        if(finishedDownloadsCount >= downloadLanguages.Count())
                             await RemoveDownload(episodeDownload);
                     }
                 }
 
-                if (StopMarkDownload is not null && StopMarkDownload.Download == episodeDownload.Download)
+                if(StopMarkDownload is not null && StopMarkDownload.Download == episodeDownload.Download)
                 {
                     await Abort();
                     quartzService.CancelJob();
@@ -306,25 +306,25 @@ namespace ProxyMov_DownloadServer.Classes
 
         public static void RemoveHandlers()
         {
-            if (CronJobEvent is not null)
+            if(CronJobEvent is not null)
             {
-                foreach (Delegate d in CronJobEvent.GetInvocationList())
+                foreach(Delegate d in CronJobEvent.GetInvocationList())
                 {
                     CronJobEvent -= (CronJobEventHandler)d;
                 }
             }
 
-            if (CronJobErrorEvent is not null)
+            if(CronJobErrorEvent is not null)
             {
-                foreach (Delegate d in CronJobErrorEvent.GetInvocationList())
+                foreach(Delegate d in CronJobErrorEvent.GetInvocationList())
                 {
                     CronJobErrorEvent -= (CronJobErrorEventHandler)d;
                 }
             }
 
-            if (CronJobDownloadsEvent is not null)
+            if(CronJobDownloadsEvent is not null)
             {
-                foreach (Delegate d in CronJobDownloadsEvent.GetInvocationList())
+                foreach(Delegate d in CronJobDownloadsEvent.GetInvocationList())
                 {
                     CronJobDownloadsEvent -= (CronJobDownloadsEventHandler)d;
                 }
@@ -333,7 +333,7 @@ namespace ProxyMov_DownloadServer.Classes
 
         public async Task Abort()
         {
-            if (Browser is not null)
+            if(Browser is not null)
             {
                 await Browser.CloseAsync();
             }
@@ -348,29 +348,33 @@ namespace ProxyMov_DownloadServer.Classes
             {
                 Headless = true,
                 ExecutablePath = Helper.GetBrowserBinPath(),
-                Args = ["--no-sandbox", ( downloaderPreferences.UseProxy ? $"--proxy-server={downloaderPreferences.ProxyUri}" : "" )]
+                Args = ["--no-sandbox", (downloaderPreferences.UseProxy ? $"--proxy-server={downloaderPreferences.ProxyUri}" : "")]
             });
 
+            string proxyLogText = $"| Url: {downloaderPreferences.ProxyUri}@{downloaderPreferences.ProxyUsername}";
+            logger.LogInformation($"{DateTime.Now} | Use Proxy: {downloaderPreferences.UseProxy} {(downloaderPreferences.UseProxy ? proxyLogText : "")}");
 
             using IPage? page = await Browser.NewPageAsync();
 
-            if (downloaderPreferences.UseProxy)
-            {
-                await page.AuthenticateAsync(new Credentials
-                {
-                    Username = downloaderPreferences.ProxyUsername,
-                    Password = downloaderPreferences.ProxyPassword
-                });
-            }
-
             try
             {
-                string? videoPageHtml = await GetPageHtml(page, streamUrl);
+                string? videoPageHtml = await GetVideoPageHtml(page, streamUrl);
 
                 if (string.IsNullOrEmpty(videoPageHtml))
                     return default;
 
-                return await GetVideoSource(page, videoPageHtml);
+                if (TryGetVideoSource(videoPageHtml, out string? m3u8))
+                    return m3u8;
+
+                string? m3u8FromJwPlayer = await GetM3U8ViaJwPlayer(page);
+
+                if (!string.IsNullOrEmpty(m3u8FromJwPlayer))
+                {
+                    logger.LogInformation($"{DateTime.Now} | M3U8 aus JW Player API: {m3u8FromJwPlayer}");
+                    return m3u8FromJwPlayer;
+                }
+
+                return default;
             }
             catch (Exception ex)
             {
@@ -384,87 +388,139 @@ namespace ProxyMov_DownloadServer.Classes
             }
         }
 
-        private async Task<string?> GetVideoSource(IPage page, string html)
+        private static bool TryGetVideoSource(string html, out string? m3u8)
         {
+            m3u8 = default;
+
             HtmlDocument htmlDocument = new();
             htmlDocument.LoadHtml(html);
 
-            Match hlsMatch = new Regex("'hls': '((?'DN'https://delivery-node)?.*?)',").Match(html);
+            Regex regex = new("https://delivery-node-(.*?)\\);");
+            Match m3u8NodeMatch = regex.Match(html);
+
+            if (m3u8NodeMatch.Success)
+            {
+                m3u8 = HttpUtility.HtmlDecode(m3u8NodeMatch.Value.TrimEnd('"', ')', ';'));
+                return true;
+            }
+
+            Match hlsMatch = new Regex("'hls': '(.*?)',").Match(html);
 
             if (hlsMatch.Success)
             {
-                if (hlsMatch.Groups["DN"].Success)
-                    return HttpUtility.HtmlDecode(hlsMatch.Groups[1].Value);
-
-                return await ExtractHLSViaJS(page, hlsMatch.Groups[1].Value);
+                m3u8 = HttpUtility.HtmlDecode(hlsMatch.Groups[1].Value);
+                return true;
             }
-
-            Match m3u8NodeMatch = new Regex("https://delivery-node-(.*?)\\);").Match(html);
-
-            if (m3u8NodeMatch.Success)
-                return HttpUtility.HtmlDecode(m3u8NodeMatch.Value.TrimEnd('"', ')', ';'));
 
             Match sourceMatch = new Regex("<source src=\"(.*?)\" type=\"application/x-mpegurl\" data-vds=\"\">").Match(html);
 
             if (sourceMatch.Success)
-                return HttpUtility.HtmlDecode(sourceMatch.Groups[1].Value);
+            {
+                m3u8 = HttpUtility.HtmlDecode(sourceMatch.Groups[1].Value);
+                return true;
+            }
 
             Match playerSourceMatch = new Regex("<source src=\"(.*?)\"").Match(html);
 
             if (playerSourceMatch.Success)
-                return HttpUtility.HtmlDecode(playerSourceMatch.Groups[1].Value);
+            {
+                m3u8 = HttpUtility.HtmlDecode(playerSourceMatch.Groups[1].Value);
+                return true;
+            }
 
-            return null;
+            return false;
         }
 
-        private async Task<string?> ExtractHLSViaJS(IPage page, string source)
+        private async Task<string?> GetVideoPageHtml(IPage page, string streamUrl)
         {
-            string atob = $"atob(\"{source}\")";
+            logger.LogInformation($"{DateTime.Now} | Navigation to Page {streamUrl}");
 
-            System.Text.Json.JsonElement? jsonElement = await page.EvaluateExpressionAsync(atob);
-
-            if (jsonElement != null && jsonElement.HasValue)
-                return jsonElement.Value.GetString();
-
-            return null;
-        }
-
-        private async Task<string?> GetPageHtml(IPage page, string pageUrl)
-        {
-            await page.GoToAsync(pageUrl);
+            await page.GoToAsync(streamUrl, new NavigationOptions
+            {
+                WaitUntil = [WaitUntilNavigation.DOMContentLoaded],
+                Timeout = 10000
+            });
 
             return await page.GetContentAsync();
         }
 
-        private async Task<(bool, string?)> TryWaitForSelectorAsync(IPage page, string selector, int timeout = 5000, CancellationToken cancellationToken = default)
+        private async Task<string?> GetM3U8ViaJwPlayer(IPage page)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            return await Task.Run(async () =>
+            try
             {
-                try
-                {
-                    await page.WaitForSelectorAsync(selector, new WaitForSelectorOptions { Timeout = timeout });
-                    logger.LogInformation($"{DateTime.Now} | Working query selector: {selector}");
-                    return (true, selector);
-                }
-                catch (WaitTaskTimeoutException)
-                {
-                    return (false, default!);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning($"{DateTime.Now} | {ex}");
-                    return (false, default!);
-                }
-            }, cancellationToken);
+                await page.WaitForFunctionAsync(@"() => {
+                    return typeof jwplayer !== 'undefined' && 
+                           jwplayer('a') && 
+                           typeof jwplayer('a').getPlaylist === 'function';
+                }", new WaitForFunctionOptions { Timeout = 10000 });
+
+                await page.EvaluateFunctionAsync(@"() => {
+                    const player = jwplayer('a');
+                    if (player && typeof player.play === 'function') {
+                        player.play();
+                    }
+                }");
+
+                //Execute player start and wait for stream to initialize
+                await Task.Delay(2000);
+
+                string? m3u8Url = await page.EvaluateFunctionAsync<string?>(@"() => {
+                    try {
+                        const player = jwplayer('a');
+                        if (!player) return null;                        
+                        
+                        const playlist = player.getPlaylist();
+                        if (playlist && playlist.length > 0) {
+                            const sources = playlist[0].sources;
+                            if (sources) {
+                                for (const source of sources) {
+                                    if (source.file && (source.file.includes('.m3u8') || source.type === 'hls')) {
+                                        return source.file;
+                                    }
+                                }
+                            }
+                        }                        
+                        
+                        const currentItem = player.getPlaylistItem();
+                        if (currentItem && currentItem.sources) {
+                            for (const source of currentItem.sources) {
+                                if (source.file && source.file.includes('.m3u8')) {
+                                    return source.file;
+                                }
+                            }
+                            if (currentItem.file) {
+                                return currentItem.file;
+                            }
+                        }                        
+                        
+                        const config = player.getConfig();
+                        if (config && config.playlist && config.playlist[0]) {
+                            const src = config.playlist[0].sources;
+                            if (src && src[0] && src[0].file) {
+                                return src[0].file;
+                            }
+                        }
+                        
+                        return null;
+                    } catch (e) {
+                        return null;
+                    }
+                }");
+
+                return m3u8Url;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"JW Player Extraktion fehlgeschlagen: {ex.Message}");
+                return null;
+            }
         }
 
         private async Task RemoveDownload(EpisodeDownloadModel episodeDownload)
         {
             bool removeSuccess = await apiService.RemoveFinishedDownload(episodeDownload);
 
-            if (!removeSuccess)
+            if(!removeSuccess)
             {
                 CronJobErrorEvent?.Invoke(MessageType.Warning, WarningMessage.DownloadNotRemoved);
             }

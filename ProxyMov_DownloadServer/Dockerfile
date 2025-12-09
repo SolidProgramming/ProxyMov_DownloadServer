@@ -1,18 +1,30 @@
 # Unter https://aka.ms/customizecontainer erfahren Sie, wie Sie Ihren Debugcontainer anpassen und wie Visual Studio dieses Dockerfile verwendet, um Ihre Images für ein schnelleres Debuggen zu erstellen.
 
 # Diese Stufe wird verwendet, wenn sie von VS im Schnellmodus ausgeführt wird (Standardeinstellung für Debugkonfiguration).
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 RUN apt-get update
-RUN apt-get install -y wget unzip fontconfig locales gconf-service libasound2 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils wget
+RUN apt-get install -y wget unzip fontconfig locales libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libnss3 lsb-release xdg-utils wget
+RUN apt-get install -y \
+       libasound2t64 \
+       libatk1.0-0 \
+       libcups2 \
+       libdrm2 \
+       libgbm1 \
+       libgtk-3-0 \
+       libnss3 \
+       libxcomposite1 \
+       libxdamage1 \
+       libxrandr2 \
+       && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /data/downloads && chmod -R 777 /data/downloads
 RUN mkdir -p /app/appdata && chmod -R 777 /app/appdata
 USER 1000:100
 WORKDIR /app
-EXPOSE 8181
-ENV ASPNETCORE_URLS=http://*:8181
+
+ENV ASPNETCORE_HTTP_PORTS=8484
 
 # Diese Stufe wird zum Erstellen des Dienstprojekts verwendet.
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ProxyMov_DownloadServer/ProxyMov_DownloadServer.csproj", "ProxyMov_DownloadServer/"]

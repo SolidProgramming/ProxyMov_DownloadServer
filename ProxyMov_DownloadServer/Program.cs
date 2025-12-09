@@ -16,7 +16,6 @@ using Toolbelt.Blazor.Extensions.DependencyInjection;
 using Toolbelt.Blazor.I18nText;
 
 const string hostUrl = "http://localhost:8080";
-
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")

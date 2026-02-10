@@ -1,120 +1,116 @@
-﻿using System.IO.Compression;
+﻿using System.Globalization;
+using System.IO.Compression;
 using System.Xml.Serialization;
 using Updater.Interfaces;
 using Updater.Misc;
 using Updater.Models;
 
-namespace Updater.Services
+namespace Updater.Services;
+
+public class UpdateService : IUpdateService
 {
-    public class UpdateService : IUpdateService
+    private const string UpdatesDetailsUrl = "https://autoupdate.solidserver.xyz/proxymov_downloadserver/latest.xml";
+
+    private const string UpdatesLatestUrl =
+        "https://autoupdate.solidserver.xyz/proxymov_downloadserver/updates/latest.zip";
+
+    private static readonly string DownloadsPath = Path.Combine(Directory.GetCurrentDirectory(), "Updates");
+    private static readonly string AssemblyPath = Path.Combine(DownloadsPath, "latest.zip");
+    private bool UpdateAvailable;
+
+    private UpdateDetailsModel? UpdateDetails;
+    public event EventHandler? OnUpdateCheckStarted;
+    public event EventHandler<(bool, UpdateDetailsModel?)>? OnUpdateCheckFinished;
+
+    public async Task CheckForUpdates(string assemblyVersion)
     {
-        public event EventHandler? OnUpdateCheckStarted;
-        public event EventHandler<(bool, UpdateDetailsModel?)>? OnUpdateCheckFinished;
+        if (UpdateAvailable && UpdateDetails is not null) OnUpdateCheckFinished?.Invoke(this, (true, UpdateDetails));
 
-        private UpdateDetailsModel? UpdateDetails;
-        private bool UpdateAvailable;
+        OnUpdateCheckStarted?.Invoke(this, EventArgs.Empty);
 
-        private const string UpdatesDetailsUrl = "https://autoupdate.solidserver.xyz/proxymov_downloadserver/latest.xml";
-        private const string UpdatesLatestUrl = "https://autoupdate.solidserver.xyz/proxymov_downloadserver/updates/latest.zip";
+        await Task.Delay(2000);
 
-        private static readonly string DownloadsPath = Path.Combine(Directory.GetCurrentDirectory(), "Updates");
-        private static readonly string AssemblyPath = Path.Combine(DownloadsPath, "latest.zip");
+        using HttpClient client = new();
 
-        public async Task CheckForUpdates(string assemblyVersion)
+        using CancellationTokenSource cts = new();
+        cts.CancelAfter(2000);
+
+        try
         {
-            if (UpdateAvailable && UpdateDetails is not null)
-                OnUpdateCheckFinished?.Invoke(this, (true, UpdateDetails));
+            var result = await client.GetStringAsync(UpdatesDetailsUrl, cts.Token);
 
-            OnUpdateCheckStarted?.Invoke(this, EventArgs.Empty);
-
-            await Task.Delay(2000);
-
-            using HttpClient client = new();
-
-            using CancellationTokenSource cts = new();
-            cts.CancelAfter(2000);
-
-            try
+            if (result.Length > 0)
             {
-                string result = await client.GetStringAsync(UpdatesDetailsUrl, cts.Token);
+                var updateDetails = ParseUpdateModel(result);
 
-                UpdateDetailsModel? updateDetails;
-
-                if (result.Length > 0)
+                if (updateDetails is null)
                 {
-                    updateDetails = ParseUpdateModel(result);
-
-                    if (updateDetails is null)
-                    {
-                        OnUpdateCheckFinished?.Invoke(this, (false, default));
-                        return;
-                    }
-
-                    if (new Version(updateDetails.Version) > new Version(assemblyVersion))
-                    {
-                        UpdateAvailable = true;
-                        UpdateDetails = updateDetails;
-                        OnUpdateCheckFinished?.Invoke(this, (UpdateAvailable, UpdateDetails));
-                        return;
-                    }
+                    OnUpdateCheckFinished?.Invoke(this, (false, null));
+                    return;
                 }
 
-                OnUpdateCheckFinished?.Invoke(this, (false, default));
+                if (updateDetails.Version != null && new Version(updateDetails.Version) > new Version(assemblyVersion))
+                {
+                    UpdateAvailable = true;
+                    UpdateDetails = updateDetails;
+                    OnUpdateCheckFinished?.Invoke(this, (UpdateAvailable, UpdateDetails));
+                    return;
+                }
             }
-            catch (Exception)
-            {
-                return;
-            }
-        }
 
-        public async Task DownloadUpdate(UpdateDetailsModel updateDetails, IProgress<float> progress)
+            OnUpdateCheckFinished?.Invoke(this, (false, null));
+        }
+        catch (Exception)
         {
-            using HttpClient? client = new();
-
-            if (!Directory.Exists(DownloadsPath))
-                Directory.CreateDirectory(DownloadsPath);
-
-            using FileStream? file = new(AssemblyPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            CancellationTokenSource cts = new();
-            CancellationToken cancellationToken = cts.Token;
-
-            await client.DownloadAsync(UpdatesLatestUrl, file, progress, cancellationToken);
+            // ignored
         }
+    }
 
-        public static async Task UnpackUpdate()
-        {
-            await Task.Run(() =>
-            {
-                try
-                {
-                    ZipFile.ExtractToDirectory(AssemblyPath, DownloadsPath, true);
-                }
-                catch (Exception)
-                {
-                    throw;
-                }
-                finally
-                {
-                    if (File.Exists(AssemblyPath))
-                        File.Delete(AssemblyPath);
-                }
-            });
-        }
+    public async Task DownloadUpdate(UpdateDetailsModel updateDetails, IProgress<float> progress)
+    {
+        using HttpClient? client = new();
 
-        private static UpdateDetailsModel? ParseUpdateModel(string xmlData)
+        if (!Directory.Exists(DownloadsPath)) Directory.CreateDirectory(DownloadsPath);
+
+        using FileStream? file = new(AssemblyPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        CancellationTokenSource cts = new();
+        var cancellationToken = cts.Token;
+
+        await client.DownloadAsync(UpdatesLatestUrl, file, progress, cancellationToken);
+    }
+
+    public static async Task UnpackUpdate()
+    {
+        await Task.Run(() =>
         {
             try
             {
-                XmlSerializer? serializer = new(typeof(UpdateDetailsModel));
-                StringReader? rdr = new(xmlData);
-
-                return Convert.ChangeType(serializer.Deserialize(rdr), typeof(UpdateDetailsModel), System.Globalization.CultureInfo.InvariantCulture) as UpdateDetailsModel;
+                ZipFile.ExtractToDirectory(AssemblyPath, DownloadsPath, true);
             }
-            catch (Exception)
+            finally
             {
-                return default;
+                if (File.Exists(AssemblyPath))
+                {
+                    File.Delete(AssemblyPath);
+                }
             }
+        });
+    }
+
+    private static UpdateDetailsModel? ParseUpdateModel(string xmlData)
+    {
+        try
+        {
+            XmlSerializer? serializer = new(typeof(UpdateDetailsModel));
+            StringReader? rdr = new(xmlData);
+
+            return Convert.ChangeType(serializer.Deserialize(rdr), typeof(UpdateDetailsModel),
+                CultureInfo.InvariantCulture) as UpdateDetailsModel;
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 }

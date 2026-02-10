@@ -1,19 +1,14 @@
 ﻿using Newtonsoft.Json;
 
-namespace ProxyMov_DownloadServer.Models
+namespace ProxyMov_DownloadServer.Models;
+
+internal class SettingsModel
 {
-    internal class SettingsModel
-    {
-        [JsonProperty("ApiUrl")]
-        public string ApiUrl { get; set; } = default!;
+    [JsonProperty("ApiUrl")] public string ApiUrl { get; set; } = null!;
 
-        [JsonProperty("APIKey")]
-        public string? ApiKey { get; set; }
+    [JsonProperty("APIKey")] public string? ApiKey { get; set; }
 
-        [JsonProperty("DownloadPath")]
-        public string? DownloadPath { get; set; } = default!;
+    [JsonProperty("DownloadPath")] public string? DownloadPath { get; set; }
 
-        [JsonProperty("ConverterSettings")]
-        public ConverterSettingsModel? ConverterSettings { get; set; }
-    }
+    [JsonProperty("ConverterSettings")] public ConverterSettingsModel? ConverterSettings { get; set; }
 }

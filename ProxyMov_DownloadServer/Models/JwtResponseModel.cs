@@ -1,7 +1,6 @@
-﻿namespace ProxyMov_DownloadServer.Models
+﻿namespace ProxyMov_DownloadServer.Models;
+
+public class JwtResponseModel(string token)
 {
-    public class JwtResponseModel(string token)
-    {
-        public string Token { get; init; } = token;
-    }
+    public string Token { get; init; } = token;
 }

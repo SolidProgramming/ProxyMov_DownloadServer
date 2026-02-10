@@ -1,20 +1,21 @@
-﻿﻿@using System.Globalization
+﻿@using System.Globalization
 @using Microsoft.Extensions.Options
-
-@inject Toolbelt.Blazor.I18nText.I18nText I18nText
+@using Toolbelt.Blazor.I18nText
+@inject I18nText I18nText
 @inject IOptions<RequestLocalizationOptions> RequestLocalizationOptions
 
 @if (LangOptionModel is not null)
 {
     <div class="mt-2 mb-2 text-center">
-        <img class="d-inline" style="width: 38px; cursor: pointer;" src="img/german_dub.svg" @onclick="@(() => @OnSubmitLangOption("de"))">
-        <img class="d-inline ms-1" style="width: 38px; cursor: pointer;" src="img/english_dub.svg" @onclick="@(() => @OnSubmitLangOption("en"))">
+        <img class="d-inline" style="width: 38px; cursor: pointer;" src="img/german_dub.svg"
+             @onclick="@(() => OnSubmitLangOption("de"))" alt="">
+        <img class="d-inline ms-1" style="width: 38px; cursor: pointer;" src="img/english_dub.svg"
+             @onclick="@(() => OnSubmitLangOption("en"))" alt="">
     </div>
 }
 
 @code {
-    [CascadingParameter]
-    public required HttpContext HttpContext { get; init; }
+    [CascadingParameter] public required HttpContext HttpContext { get; init; }
 
     protected override void OnInitialized()
     {
@@ -23,12 +24,11 @@
             var options = RequestLocalizationOptions.Value;
             var lang = CultureInfo.CurrentUICulture.Name.Split('-').First();
             lang = options.SupportedUICultures?.Any(culture => culture.Name.Split('-').First() == lang) == true ? lang : options.DefaultRequestCulture.UICulture.Name;
-            LangOptionModel = new() { Language = lang };
+            LangOptionModel = new LanguageOption { Language = lang };
         }
     }
 
-    [SupplyParameterFromForm]
-    public LanguageOption? LangOptionModel { get; set; }
+    [SupplyParameterFromForm] public LanguageOption? LangOptionModel { get; set; }
 
     public class LanguageOption
     {
@@ -37,7 +37,12 @@
 
     private async Task OnSubmitLangOption(string lang)
     {
-        if (LangOptionModel is null) return;
-        await this.I18nText.SetCurrentLanguageAsync(lang);
+        if (LangOptionModel is null)
+        {
+            return;
+        }
+
+        await I18nText.SetCurrentLanguageAsync(lang);
     }
+
 }

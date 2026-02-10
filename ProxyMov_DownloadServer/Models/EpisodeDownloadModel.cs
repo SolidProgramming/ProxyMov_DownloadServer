@@ -1,9 +1,8 @@
-﻿namespace ProxyMov_DownloadServer.Models
+﻿namespace ProxyMov_DownloadServer.Models;
+
+public class EpisodeDownloadModel
 {
-    public class EpisodeDownloadModel
-    {
-        public bool HasStopMark { get; set; }
-        public DownloadModel Download { get; set; } = default!;
-        public StreamingPortalModel StreamingPortal { get; set; } = default!;
-    }
+    public bool HasStopMark { get; set; }
+    public DownloadModel Download { get; set; } = null!;
+    public StreamingPortalModel StreamingPortal { get; set; } = null!;
 }

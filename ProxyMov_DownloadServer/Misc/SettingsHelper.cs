@@ -1,70 +1,61 @@
-﻿using Newtonsoft.Json;
-using ProxyMov_DownloadServer.Misc;
-using System.Reflection;
+﻿using System.Reflection;
+using Newtonsoft.Json;
 
-namespace ProxyMov_DownloadServer.Misc
+namespace ProxyMov_DownloadServer.Misc;
+
+internal static class SettingsHelper
 {
-    internal static class SettingsHelper
+    private static string? GetSaveFilePath()
     {
-        private static string? GetSaveFilePath()
+        string path;
+        if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
         {
-            string path;
-            if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
-            {
-                path = @"/app/appdata/settings.json";
+            path = @"/app/appdata/settings.json";
 
-                if (!Directory.Exists(Path.GetDirectoryName(path)))
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(path));
-                };
+            if (!Directory.Exists(Path.GetDirectoryName(path)))
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? throw new InvalidOperationException());
 
-                return path;
-            }
-            else
-            {
-                return "settings.json";
-            }
+            ;
+
+            return path;
         }
 
-        internal static T? ReadSettings<T>()
-        {
-            string? path = GetSaveFilePath();
+        return "settings.json";
+    }
 
-            if (!File.Exists(path) || string.IsNullOrEmpty(path))
-                return default;
+    internal static T? ReadSettings<T>()
+    {
+        var path = GetSaveFilePath();
 
-            using StreamReader r = new(path);
-            string json = r.ReadToEnd();
+        if (!File.Exists(path) || string.IsNullOrEmpty(path)) return default;
 
-            SettingsModel? settings = JsonConvert.DeserializeObject<SettingsModel>(json);
+        using StreamReader r = new(path);
+        var json = r.ReadToEnd();
 
-            if (settings is null) return default;
+        var settings = JsonConvert.DeserializeObject<SettingsModel>(json);
 
-            if (typeof(T) == typeof(SettingsModel))
-            {
-                return (T)Convert.ChangeType(settings, typeof(T));
-            }
+        if (settings is null) return default;
 
-            return settings.GetSetting<T>();
-        }
+        if (typeof(T) == typeof(SettingsModel)) return (T)Convert.ChangeType(settings, typeof(T));
 
-        public static T? GetSetting<T>(this SettingsModel settings)
-        {
-            return (T?)settings?.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .First(_ => _.PropertyType == typeof(T))
-                .GetValue(settings, null);
-        }
+        return settings.GetSetting<T>();
+    }
 
-        public static void SaveSettings(SettingsModel settings)
-        {
-            string? path = GetSaveFilePath();
+    public static T? GetSetting<T>(this SettingsModel settings)
+    {
+        return (T?)settings?.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .First(_ => _.PropertyType == typeof(T))
+            .GetValue(settings, null);
+    }
 
-            if (!File.Exists(path) || string.IsNullOrEmpty(path))
-                return;
+    public static void SaveSettings(SettingsModel settings)
+    {
+        var path = GetSaveFilePath();
 
-            string json = JsonConvert.SerializeObject(settings);
+        if (!File.Exists(path) || string.IsNullOrEmpty(path)) return;
 
-            File.WriteAllText(path, json);
-        }
+        var json = JsonConvert.SerializeObject(settings);
+
+        File.WriteAllText(path, json);
     }
 }

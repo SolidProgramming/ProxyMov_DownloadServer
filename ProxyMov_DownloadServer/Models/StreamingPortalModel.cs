@@ -1,8 +1,7 @@
-﻿namespace ProxyMov_DownloadServer.Models
+﻿namespace ProxyMov_DownloadServer.Models;
+
+public class StreamingPortalModel
 {
-    public class StreamingPortalModel
-    {
-        public int Id { get; set; }
-        public string? Name { get; set; }
-    }
+    public int Id { get; set; }
+    public string? Name { get; set; }
 }

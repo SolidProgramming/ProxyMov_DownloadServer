@@ -1,9 +1,8 @@
-﻿namespace ProxyMov_DownloadServer.Models
+﻿namespace ProxyMov_DownloadServer.Models;
+
+internal class UserModel
 {
-    internal class UserModel
-    {
-        public string Username { get; set; } = default!;
-        public string Password { get; set; } = default!;
-        public string Token { get; set; } = default!;
-    }
+    public string Username { get; set; } = null!;
+    public string Password { get; set; } = null!;
+    public string Token { get; set; } = null!;
 }

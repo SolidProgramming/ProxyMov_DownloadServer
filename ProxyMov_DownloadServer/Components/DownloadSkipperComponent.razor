@@ -3,7 +3,7 @@
     <div class="container mt-5 text-center">
         @foreach (IGrouping<string, EpisodeDownloadModel> group in GetGroupedDownloads())
         {
-            string seriesName = group.First().Download.Name;
+            var seriesName = group.First().Download.Name;
             var seasonGroups = group.GroupBy(_ => _.Download.Season);
             <div class="d-inline-block me-2 mb-2">
                 <HxBadge CssClass="px-3 pt-2 pb-2" Color="ThemeColor.Secondary">
@@ -17,7 +17,8 @@
                         <div class="d-flex justify-content-center">
                             @foreach (IGrouping<int, EpisodeDownloadModel> group2 in seasonGroups)
                             {
-                                <HxBadge style="font-size: 15px" CssClass="d-inline-block px-3 mx-1" Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
+                                <HxBadge style="font-size: 15px" CssClass="d-inline-block px-3 mx-1"
+                                         Type="BadgeType.RoundedPill" Color="ThemeColor.Dark">
                                     <span class="pe-3">@($"S{group2.Key:D2}")</span>
                                     <HxIcon CssClass="text-danger float-end" Icon="BootstrapIcon.XCircle"></HxIcon>
                                 </HxBadge>
@@ -36,18 +37,17 @@
 
     protected override void OnAfterRender(bool firstRender)
     {
-        if (firstRender)
-        {
-            CronJob.CronJobEvent += CronJobEvent;
-            CronJob.CronJobDownloadsEvent += CronJobDownloads;
-        }
+        if (!firstRender) return;
+
+        CronJob.CronJobEvent += CronJobEvent;
+        CronJob.CronJobDownloadsEvent += CronJobDownloads;
     }
 
     private void CronJobDownloads(int downloadCount, int languageDownloadCount)
     {
         Downloads = CronJob.DownloadQue?.ToList().Except(CronJob.SkippedDownloads).ToList();
 
-        InvokeAsync(() => StateHasChanged());
+        InvokeAsync(StateHasChanged);
     }
 
     private void CronJobEvent(CronJobState jobState)
@@ -59,21 +59,21 @@
             case CronJobState.WaitForNextCycle:
                 Downloads = null;
                 break;
-
             case CronJobState.Running:
-                break;
-
             case CronJobState.CheckingForDownloads:
+            case CronJobState.Undefined:
+            case CronJobState.Paused:
                 break;
             default:
-                break;
+                throw new ArgumentOutOfRangeException(nameof(jobState), jobState, null);
         }
 
-        InvokeAsync(() => StateHasChanged());
+        InvokeAsync(StateHasChanged);
     }
 
     private IEnumerable<IGrouping<string, EpisodeDownloadModel>> GetGroupedDownloads()
     {
-        return Downloads.GroupBy(_ => _.Download.Name).Take(5);
+        return Downloads?.GroupBy(_ => _.Download.Name).Take(5);
     }
+
 }

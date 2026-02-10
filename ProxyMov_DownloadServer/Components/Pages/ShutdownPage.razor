@@ -4,9 +4,9 @@
 @inject IJSRuntime JS
 
 <PageTitle>Shutdown</PageTitle>
- @if (IsStopping)
+@if (IsStopping)
 {
-    <div id="ShuttingDown" class="container text-center mt-4">        
+    <div id="ShuttingDown" class="container text-center mt-4">
         <h1 class="mt-2 text-warning" style="font-family: 'Roboto', sans-serif;">Server wird heruntergefahren...</h1>
     </div>
 }
@@ -21,10 +21,7 @@
     {
         if (!AppStoppingRegistered)
         {
-            AppLifetime.ApplicationStopping.Register(async () =>
-            {
-                await OnStopping();
-            });
+            AppLifetime.ApplicationStopping.Register(async () => { await OnStopping(); });
             AppStoppingRegistered = true;
         }
 
@@ -45,4 +42,5 @@
         IsStopping = true;
         await InvokeAsync(StateHasChanged);
     }
+
 }

@@ -1,11 +1,10 @@
-﻿namespace ProxyMov_DownloadServer.Enums
+﻿namespace ProxyMov_DownloadServer.Enums;
+
+public enum MessageType
 {
-    public enum MessageType
-    {
-        Success,
-        Info,
-        Warning,
-        Error,
-        Secondary
-    }
+    Success,
+    Info,
+    Warning,
+    Error,
+    Secondary
 }

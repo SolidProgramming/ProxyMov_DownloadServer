@@ -1,7 +1,6 @@
-﻿namespace ProxyMov_DownloadServer.Interfaces
+﻿namespace ProxyMov_DownloadServer.Interfaces;
+
+internal interface IAuthService
 {
-    internal interface IAuthService
-    {
-        Task<bool> Login(string username, string password);
-    }
+    Task<bool> Login(string username, string password);
 }

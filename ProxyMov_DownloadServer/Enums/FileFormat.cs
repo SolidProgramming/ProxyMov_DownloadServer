@@ -1,10 +1,9 @@
-﻿namespace ProxyMov_DownloadServer.Enums
+﻿namespace ProxyMov_DownloadServer.Enums;
+
+public enum FileFormat
 {
-    public enum FileFormat
-    {
-        ORIGINAL,
-        MKV,
-        MP4,
-        FLV
-    }
+    ORIGINAL,
+    MKV,
+    MP4,
+    FLV
 }

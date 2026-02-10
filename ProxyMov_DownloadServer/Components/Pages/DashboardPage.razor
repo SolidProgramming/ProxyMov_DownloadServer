@@ -1,8 +1,9 @@
-﻿@using Routes = ProxyMov_DownloadServer.Misc.Routes;
-@using Microsoft.AspNetCore.Components.Rendering
-@using System.Net
+﻿@using System.Timers
+@using ProxyMov_DownloadServer.I18nText
+@using Toolbelt.Blazor.I18nText
 @using Updater.Components
 @using Updater.Interfaces
+@using Routes = ProxyMov_DownloadServer.Misc.Routes;
 @attribute [Route(Routes.Dashboard)]
 @attribute [Route(Routes.Index)]
 @inject IHxMessengerService ToastService
@@ -13,7 +14,7 @@
 @inject NavigationManager NavigationManager
 @inject IHostApplicationLifetime AppLifetime
 @inject IQuartzService QuartzService
-@inject Toolbelt.Blazor.I18nText.I18nText I18nText
+@inject I18nText I18nText
 @inject IUpdateService UpdateService
 
 <PageTitle>Dashboard</PageTitle>
@@ -26,13 +27,13 @@
     <BodyTemplate>
         <div class="container">
             <HxAlert Color="ThemeColor.Info" CssClass="mt-1">
-                <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill" />
-                Du hast noch keinen Download Pfad angegeben! <br /><span class="ps-4">Bitte trage hier den Pfad ein wo die Dateien gespeichert werden sollen.</span>
+                <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill"/>
+                Du hast noch keinen Download Pfad angegeben! <br/><span class="ps-4">Bitte trage hier den Pfad ein wo die Dateien gespeichert werden sollen.</span>
             </HxAlert>
             @if (ShowDownloadPathError)
             {
                 <HxAlert Color="ThemeColor.Danger" CssClass="mt-1">
-                    <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill" />
+                    <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill"/>
                     Du musst einen Download Pfad angeben!
                 </HxAlert>
             }
@@ -40,7 +41,9 @@
                 <HxInputText @bind-Value="Settings.DownloadPath" Placeholder="C:\\Downloads"></HxInputText>
             </div>
             <div class="mt-4">
-                <HxButton OnClick="SaveDownloadPath" Color="ThemeColor.Success" Icon="BootstrapIcon.Check" CssClass="w-100">Speichern</HxButton>
+                <HxButton OnClick="SaveDownloadPath" Color="ThemeColor.Success" Icon="BootstrapIcon.Check"
+                          CssClass="w-100">Speichern
+                </HxButton>
             </div>
         </div>
     </BodyTemplate>
@@ -50,161 +53,36 @@
         <div style="overflow-y: auto;">
             <table class="table">
                 <thead>
-                    <tr>
-                        <th scope="col"></th>
-                        <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Status</th>
-                        <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Name</th>
-                        <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
-                        <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
-                        <th scope="col" class="text-center"></th>
-                        <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">%</th>
-                        <th scope="col" class="text-center text-warning" style="font-family: 'Roboto', sans-serif;">
-                            <HxIcon Icon="BootstrapIcon.LightningChargeFill" />
-                        </th>
-                        <th scope="col" class="text-center text-info" style="font-family: 'Roboto', sans-serif;">ETA</th>
-                        <th scope="col"></th>
-                        <th scope="col"></th>
-                        <th scope="col" class="text-center"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="text-center align-middle" width="50">
-                            @if (Download is not null)
-                            {
-                                bool hasStopMark = Download == CronJob.StopMarkDownload?.Download;
-
-                                <HxButton OnClick="@(() => ToggleStopMark())" Color="@(hasStopMark ? ThemeColor.Info : ThemeColor.Secondary)" Icon="@(hasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="50">
-                            @switch (ConverterState)
-                            {
-                                case ConverterState.Downloading:
-                                    <HxSpinner Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
-                                    break;
-                                case ConverterState.Idle:
-                                case ConverterState.Undefined:
-                                    @if (CronJobState == CronJobState.WaitForNextCycle)
-                                    {
-                                        <HxIcon Icon="BootstrapIcon.Hourglass"></HxIcon>
-                                    }
-                                    else
-                                    {
-                                        <HxSpinner Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
-                                    }
-                                    break;
-                                default:
-                                    break;
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="500" style="font-family: 'Roboto', sans-serif;">
-                            @if (Download is not null)
-                            {
-                                @Download.Name
-                            }
-                            else
-                            {
-                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="70" style="font-family: 'Roboto', sans-serif;">
-                            @if (Download is not null)
-                            {
-                                @($"S{Download.Season:D2}")
-                            }
-                            else
-                            {
-                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="70" style="font-family: 'Roboto', sans-serif;">
-                            @if (Download is not null)
-                            {
-                                @($"E{Download.Episode:D2}")
-                            }
-                            else
-                            {
-                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="90">
-                            @if (Download is not null)
-                            {
-                                <LanguageFlagComponent Languages="@Download.LanguageFlag"></LanguageFlagComponent>
-                            }
-                            else
-                            {
-                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="220">
-                            <HxProgress>
-                                @if (ConvertProgress is not null)
-                                {
-                                    <HxProgressBar Value="ConvertProgress.ProgressPercent" Color="ThemeColor.Success" />
-                                }
-                                else
-                                {
-                                    <HxProgressBar Value="0" Color="ThemeColor.Success" />
-                                }
-                            </HxProgress>
-                        </td>
-                        <td class="text-center align-middle" width="70">
-                            @if (ConvertProgress is not null)
-                            {
-                                @(GetAdjustedDownloadSpeed(ConvertProgress))
-                            }
-                            else
-                            {
-                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="100" style="font-family: 'Roboto', sans-serif;">
-                            @if (ConvertProgress is not null && SmoothedETA.TotalSeconds > 0)
-                            {
-                                @($"{SmoothedETA.Hours:00}:{SmoothedETA.Minutes:00}:{SmoothedETA.Seconds:00}")
-                            }
-                            else
-                            {
-                                <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
-                            }
-                        </td>
-                        <td class="text-center align-middle" width="50">
-                            <HxButton Enabled="@(ConverterState == ConverterState.Downloading && StopConverterButtonEnabled)" Color="ThemeColor.Warning" Icon="BootstrapIcon.StopFill" OnClick="StopConverter"></HxButton>
-                        </td>
-                        <td class="text-center align-middle" width="50">
-                            <HxButton OnClick="SkipDownload" Color="ThemeColor.Secondary" Enabled="@(ConverterState == ConverterState.Downloading)" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
-                        </td>
-                        <td class="text-center align-middle" width="50">
-                            <HxButton Spinner="CheckDownloadsButtonSpinner" Enabled="CheckDownloadsButtonEnabled" OnClick="CheckForDownloads" Color="ThemeColor.Success" Icon="BootstrapIcon.ArrowClockwise"></HxButton>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <div class="d-sm-block d-md-none">
-        <div class="row">
-            <div class="col">
-                <HxButton CssClass="w-100" Enabled="@(ConverterState == ConverterState.Downloading && StopConverterButtonEnabled)" Color="ThemeColor.Warning" Icon="BootstrapIcon.StopFill" OnClick="StopConverter"></HxButton>
-            </div>
-            <div class="col">
-                <HxButton CssClass="w-100" OnClick="SkipDownload" Color="ThemeColor.Secondary" Enabled="@(ConverterState == ConverterState.Downloading)" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
-            </div>
-            <div class="col">
-                <HxButton CssClass="w-100" Spinner="CheckDownloadsButtonSpinner" Enabled="CheckDownloadsButtonEnabled" OnClick="CheckForDownloads" Color="ThemeColor.Success" Icon="BootstrapIcon.ArrowClockwise"></HxButton>
-            </div>
-        </div>
-        <table class="table mt-2">
-            <thead>
                 <tr>
+                    <th scope="col"></th>
                     <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Status</th>
                     <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Name</th>
+                    <th scope="col" class="text-center"
+                        style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
+                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
+                    <th scope="col" class="text-center"></th>
+                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">%</th>
+                    <th scope="col" class="text-center text-warning" style="font-family: 'Roboto', sans-serif;">
+                        <HxIcon Icon="BootstrapIcon.LightningChargeFill"/>
+                    </th>
+                    <th scope="col" class="text-center text-info" style="font-family: 'Roboto', sans-serif;">ETA</th>
+                    <th scope="col"></th>
+                    <th scope="col"></th>
+                    <th scope="col" class="text-center"></th>
                 </tr>
-            </thead>
-            <tbody>
+                </thead>
+                <tbody>
                 <tr>
+                    <td class="text-center align-middle" width="50">
+                        @if (Download is not null)
+                        {
+                            var hasStopMark = Download == CronJob.StopMarkDownload?.Download;
+
+                            <HxButton OnClick="@(() => ToggleStopMark())"
+                                      Color="@(hasStopMark ? ThemeColor.Info : ThemeColor.Secondary)"
+                                      Icon="@(hasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
+                        }
+                    </td>
                     <td class="text-center align-middle" width="50">
                         @switch (ConverterState)
                         {
@@ -221,12 +99,11 @@
                                 {
                                     <HxSpinner Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
                                 }
-                                break;
-                            default:
+
                                 break;
                         }
                     </td>
-                    <td class="text-center align-middle" width="200" style="font-family: 'Roboto', sans-serif;">
+                    <td class="text-center align-middle" width="500" style="font-family: 'Roboto', sans-serif;">
                         @if (Download is not null)
                         {
                             @Download.Name
@@ -236,24 +113,6 @@
                             <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
                         }
                     </td>
-                </tr>
-            </tbody>
-        </table>
-        <table class="table mt-3">
-            <thead>
-                <tr>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">%</th>
-                    <th scope="col" class="text-center text-warning" style="font-family: 'Roboto', sans-serif;">
-                        <HxIcon Icon="BootstrapIcon.LightningChargeFill" />
-                    </th>
-                    <th scope="col" class="text-center text-info" style="font-family: 'Roboto', sans-serif;">ETA</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-
                     <td class="text-center align-middle" width="70" style="font-family: 'Roboto', sans-serif;">
                         @if (Download is not null)
                         {
@@ -274,15 +133,25 @@
                             <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
                         }
                     </td>
-                    <td class="text-center align-middle" width="150">
+                    <td class="text-center align-middle" width="90">
+                        @if (Download is not null)
+                        {
+                            <LanguageFlagComponent Languages="@Download.LanguageFlag"></LanguageFlagComponent>
+                        }
+                        else
+                        {
+                            <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                        }
+                    </td>
+                    <td class="text-center align-middle" width="220">
                         <HxProgress>
                             @if (ConvertProgress is not null)
                             {
-                                <HxProgressBar Value="ConvertProgress.ProgressPercent" Label="@(ConvertProgress.ProgressPercent + "%")" Color="ThemeColor.Success" />
+                                <HxProgressBar Value="ConvertProgress.ProgressPercent" Color="ThemeColor.Success"/>
                             }
                             else
                             {
-                                <HxProgressBar Value="0" Color="ThemeColor.Success" />
+                                <HxProgressBar Value="0" Color="ThemeColor.Success"/>
                             }
                         </HxProgress>
                     </td>
@@ -306,7 +175,156 @@
                             <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
                         }
                     </td>
+                    <td class="text-center align-middle" width="50">
+                        <HxButton
+                                Enabled="@(ConverterState == ConverterState.Downloading && StopConverterButtonEnabled)"
+                                Color="ThemeColor.Warning" Icon="BootstrapIcon.StopFill"
+                                OnClick="StopConverter"></HxButton>
+                    </td>
+                    <td class="text-center align-middle" width="50">
+                        <HxButton OnClick="SkipDownload" Color="ThemeColor.Secondary"
+                                  Enabled="@(ConverterState == ConverterState.Downloading)"
+                                  Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                    </td>
+                    <td class="text-center align-middle" width="50">
+                        <HxButton Spinner="CheckDownloadsButtonSpinner" Enabled="CheckDownloadsButtonEnabled"
+                                  OnClick="CheckForDownloads" Color="ThemeColor.Success"
+                                  Icon="BootstrapIcon.ArrowClockwise"></HxButton>
+                    </td>
                 </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="d-sm-block d-md-none">
+        <div class="row">
+            <div class="col">
+                <HxButton CssClass="w-100"
+                          Enabled="@(ConverterState == ConverterState.Downloading && StopConverterButtonEnabled)"
+                          Color="ThemeColor.Warning" Icon="BootstrapIcon.StopFill" OnClick="StopConverter"></HxButton>
+            </div>
+            <div class="col">
+                <HxButton CssClass="w-100" OnClick="SkipDownload" Color="ThemeColor.Secondary"
+                          Enabled="@(ConverterState == ConverterState.Downloading)"
+                          Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+            </div>
+            <div class="col">
+                <HxButton CssClass="w-100" Spinner="CheckDownloadsButtonSpinner" Enabled="CheckDownloadsButtonEnabled"
+                          OnClick="CheckForDownloads" Color="ThemeColor.Success"
+                          Icon="BootstrapIcon.ArrowClockwise"></HxButton>
+            </div>
+        </div>
+        <table class="table mt-2">
+            <thead>
+            <tr>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Status</th>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Name</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td class="text-center align-middle" width="50">
+                    @switch (ConverterState)
+                    {
+                        case ConverterState.Downloading:
+                            <HxSpinner Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
+                            break;
+                        case ConverterState.Idle:
+                        case ConverterState.Undefined:
+                            @if (CronJobState == CronJobState.WaitForNextCycle)
+                            {
+                                <HxIcon Icon="BootstrapIcon.Hourglass"></HxIcon>
+                            }
+                            else
+                            {
+                                <HxSpinner Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
+                            }
+
+                            break;
+                    }
+                </td>
+                <td class="text-center align-middle" width="200" style="font-family: 'Roboto', sans-serif;">
+                    @if (Download is not null)
+                    {
+                        @Download.Name
+                    }
+                    else
+                    {
+                        <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                    }
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <table class="table mt-3">
+            <thead>
+            <tr>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">%</th>
+                <th scope="col" class="text-center text-warning" style="font-family: 'Roboto', sans-serif;">
+                    <HxIcon Icon="BootstrapIcon.LightningChargeFill"/>
+                </th>
+                <th scope="col" class="text-center text-info" style="font-family: 'Roboto', sans-serif;">ETA</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+
+                <td class="text-center align-middle" width="70" style="font-family: 'Roboto', sans-serif;">
+                    @if (Download is not null)
+                    {
+                        @($"S{Download.Season:D2}")
+                    }
+                    else
+                    {
+                        <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                    }
+                </td>
+                <td class="text-center align-middle" width="70" style="font-family: 'Roboto', sans-serif;">
+                    @if (Download is not null)
+                    {
+                        @($"E{Download.Episode:D2}")
+                    }
+                    else
+                    {
+                        <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                    }
+                </td>
+                <td class="text-center align-middle" width="150">
+                    <HxProgress>
+                        @if (ConvertProgress is not null)
+                        {
+                            <HxProgressBar Value="ConvertProgress.ProgressPercent"
+                                           Label="@(ConvertProgress.ProgressPercent + "%")" Color="ThemeColor.Success"/>
+                        }
+                        else
+                        {
+                            <HxProgressBar Value="0" Color="ThemeColor.Success"/>
+                        }
+                    </HxProgress>
+                </td>
+                <td class="text-center align-middle" width="70">
+                    @if (ConvertProgress is not null)
+                    {
+                        @(GetAdjustedDownloadSpeed(ConvertProgress))
+                    }
+                    else
+                    {
+                        <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                    }
+                </td>
+                <td class="text-center align-middle" width="100" style="font-family: 'Roboto', sans-serif;">
+                    @if (ConvertProgress is not null && SmoothedETA.TotalSeconds > 0)
+                    {
+                        @($"{SmoothedETA.Hours:00}:{SmoothedETA.Minutes:00}:{SmoothedETA.Seconds:00}")
+                    }
+                    else
+                    {
+                        <HxIcon Icon="BootstrapIcon.Dash"></HxIcon>
+                    }
+                </td>
+            </tr>
             </tbody>
         </table>
     </div>
@@ -371,7 +389,7 @@
 
 
 @code {
-    private I18nText.Lang LangText = new();
+    private Lang LangText = new();
 
     private HxModal? DownloadPathModal;
 
@@ -383,16 +401,16 @@
 
     private CronJob? CronJob;
 
-    private bool CheckDownloadsButtonEnabled { get; set; } = false;
-    private bool CheckDownloadsButtonSpinner { get; set; } = false;
+    private bool CheckDownloadsButtonEnabled { get; set; }
+    private bool CheckDownloadsButtonSpinner { get; set; }
 
     private bool EditConverterSettingsButtonEnabled { get; set; } = true;
 
-    private bool StopConverterButtonEnabled { get; set; } = false;
+    private bool StopConverterButtonEnabled { get; set; }
 
-    private DateTime? NextCronJobCycle = default;
+    private DateTime? NextCronJobCycle;
     private TimeOnly NextCronJobCyleTime;
-    private System.Timers.Timer? TmNextCycle;
+    private Timer? TmNextCycle;
     private TimeSpan? TimeUntilCycle;
     private string? TimeUntilCycleText;
 
@@ -406,7 +424,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
+        LangText = await I18nText.GetTextTableAsync<Lang>(this);
     }
 
     protected override async void OnAfterRender(bool firstRender)
@@ -425,7 +443,7 @@
 
             ConverterState = ConverterService.GetConverterState();
 
-            CronJob = new(CronJobLogger, ApiService, CS, AppLifetime, QuartzService);
+            CronJob = new CronJob(CronJobLogger, ApiService, CS, AppLifetime, QuartzService);
 
             CronJob.CronJobEvent += CronJobEvent;
             CronJob.CronJobErrorEvent += CronJobErrorEvent;
@@ -435,11 +453,11 @@
 
             if (TmNextCycle is null)
             {
-                TmNextCycle = new()
-                    {
+                TmNextCycle = new Timer
+                {
                         AutoReset = true,
                         Interval = 1000
-                    };
+                };
 
                 TmNextCycle.Elapsed += RefreshCycleTime;
             }
@@ -460,10 +478,12 @@
         }
     }
 
-    private void RefreshCycleTime(Object? source, System.Timers.ElapsedEventArgs e)
+    private void RefreshCycleTime(object? source, ElapsedEventArgs e)
     {
         if (CronJob.NextRun is null)
+        {
             return;
+        }
 
         NextCronJobCycle = CronJob.NextRun.Value;
         NextCronJobCyleTime = TimeOnly.FromDateTime(NextCronJobCycle.Value);
@@ -577,9 +597,7 @@
                 ToastService.AddMessage(InfoMessage.CheckingForDownloads, MessageType.Secondary);
                 break;
             case CronJobState.Paused:
-                NextCronJobCycle = default;
-                break;
-            default:
+                NextCronJobCycle = null;
                 break;
         }
 
@@ -608,10 +626,11 @@
                 {
                     Download = download;
                 }
+
                 break;
             case ConverterState.Idle:
-                Download = default;
-                ConvertProgress = default;
+                Download = null;
+                ConvertProgress = null;
                 break;
             case ConverterState.Undefined:
             default:
@@ -624,12 +643,14 @@
     private async Task CheckForDownloads()
     {
         if (CronJob is null)
-            CronJob = new(CronJobLogger, ApiService, CS, AppLifetime, QuartzService);
+        {
+            CronJob = new CronJob(CronJobLogger, ApiService, CS, AppLifetime, QuartzService);
+        }
 
 
         if (QuartzService.IsCancelled())
         {
-            QuartzService.StartJob();
+            await QuartzService.StartJob();
         }
         else
         {
@@ -640,7 +661,9 @@
     private async Task StopConverter()
     {
         if (CronJob is not null)
+        {
             await CronJob.Abort();
+        }
 
         ConverterService.Abort();
 
@@ -653,7 +676,9 @@
     private void SkipDownload()
     {
         if (CronJobState != CronJobState.Running || ConverterState != ConverterState.Downloading)
+        {
             return;
+        }
 
         ConverterService.Abort(true);
     }
@@ -666,7 +691,9 @@
     private string? GetAdjustedDownloadSpeed(ConvertProgressModel convertProgress)
     {
         if (convertProgress is null || convertProgress.KBytePerSecond <= 0)
-            return default;
+        {
+            return null;
+        }
 
         string unit = "KB/s";
         double speed = convertProgress.KBytePerSecond;
@@ -710,17 +737,22 @@
 
         if (CronJob.StopMarkDownload.HasStopMark)
         {
-            CronJob.StopMarkDownload = new EpisodeDownloadModel()
+            if (Download != null)
+            {
+                CronJob.StopMarkDownload = new EpisodeDownloadModel
                 {
                     Download = Download,
                     HasStopMark = CronJob.StopMarkDownload.HasStopMark
                 };
+            }
+
             ToastService.AddMessage(InfoMessage.StopmarkSet, MessageType.Secondary);
         }
         else
         {
-            CronJob.StopMarkDownload = default;
+            CronJob.StopMarkDownload = null;
             ToastService.AddMessage(InfoMessage.StopmarkUnset, MessageType.Secondary);
         }
     }
+
 }

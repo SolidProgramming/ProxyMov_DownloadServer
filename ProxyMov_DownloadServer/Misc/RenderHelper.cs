@@ -1,17 +1,24 @@
-﻿namespace ProxyMov_DownloadServer.Misc
+﻿namespace ProxyMov_DownloadServer.Misc;
+
+internal static class RenderHelper
 {
-    internal static class RenderHelper
+    private static readonly List<string> FirstRenderPages = [];
+
+    internal static bool IsFirstRender(this string componentName)
     {
-        private static List<string> FirstRenderPages = [];
+        return !FirstRenderPages.Contains(componentName);
+    }
 
-        internal static bool IsFirstRender(this string componentName) => !FirstRenderPages.Contains(componentName);
-
-        internal static void ComponentSetRendered(string componentName)
+    internal static void ComponentSetRendered(string componentName)
+    {
+        if (!FirstRenderPages.Contains(componentName))
         {
-            if (!FirstRenderPages.Contains(componentName))
-                FirstRenderPages.Add(componentName);
+            FirstRenderPages.Add(componentName);
         }
+    }
 
-        internal static void RemoveRenderEntry(string componentName) => FirstRenderPages.Remove(componentName);
+    internal static void RemoveRenderEntry(string componentName)
+    {
+        FirstRenderPages.Remove(componentName);
     }
 }

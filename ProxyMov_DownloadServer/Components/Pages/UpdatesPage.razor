@@ -9,9 +9,11 @@
 <UpdateComponent ForceDownloadButton="true"></UpdateComponent>
 
 @code {
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         string assemblyVersion = typeof(Program).Assembly.GetName().Version.ToString();
         await UpdateService.CheckForUpdates(assemblyVersion);
     }
+
 }

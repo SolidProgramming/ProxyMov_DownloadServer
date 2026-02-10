@@ -1,17 +1,16 @@
-﻿namespace ProxyMov_DownloadServer.Classes
+﻿namespace ProxyMov_DownloadServer.Classes;
+
+internal static class UserStorageHelper
 {
-    internal static class UserStorageHelper
+    private static UserModel? User;
+
+    internal static void Set(UserModel user)
     {
-        private static UserModel? User = default;
+        User = user;
+    }
 
-        internal static void Set(UserModel user)
-        {
-            User = user;
-        }
-
-        internal static UserModel? Get()
-        {
-            return User;
-        }
+    internal static UserModel? Get()
+    {
+        return User;
     }
 }

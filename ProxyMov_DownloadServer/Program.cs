@@ -5,15 +5,19 @@ global using ProxyMov_DownloadServer.Interfaces;
 global using ProxyMov_DownloadServer.Misc;
 global using ProxyMov_DownloadServer.Models;
 global using ProxyMov_DownloadServer.Services;
-using Havit.Blazor.Components.Web;
-using ProxyMov_DownloadServer.Components;
-using PuppeteerSharp;
-using Quartz;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
+using Havit.Blazor.Components.Web;
+using ProxyMov_DownloadServer.Components;
+using ProxyMov_DownloadServer.Misc;
+using ProxyMov_DownloadServer.ServiceDefaults;
+using PuppeteerSharp;
+using Quartz;
 using Toolbelt.Blazor.Extensions.DependencyInjection;
 using Toolbelt.Blazor.I18nText;
+using Updater.Interfaces;
+using Updater.Services;
 
 const string hostUrl = "http://localhost:8080";
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -46,17 +50,14 @@ builder.Services.AddQuartzHostedService(_ =>
     _.AwaitApplicationStarted = true;
 });
 
-builder.Services.AddI18nText(_ =>
-{
-    _.PersistenceLevel = PersistanceLevel.PersistentCookie;
-});
+builder.Services.AddI18nText(_ => { _.PersistenceLevel = PersistanceLevel.PersistentCookie; });
 
 builder.Services.AddHttpClient<IApiService, ApiService>();
 
 builder.Services.AddSingleton<IApiService, ApiService>();
 builder.Services.AddSingleton<IConverterService, ConverterService>();
 builder.Services.AddSingleton<IQuartzService, QuartzService>();
-builder.Services.AddSingleton<Updater.Interfaces.IUpdateService, Updater.Services.UpdateService>();
+builder.Services.AddSingleton<IUpdateService, UpdateService>();
 
 WebApplication app = builder.Build();
 
@@ -70,7 +71,8 @@ if (settings is null || string.IsNullOrEmpty(settings.ApiUrl))
 
 app.Logger.LogInformation($"{DateTime.Now} | Downloading and installing chrome to: {Helper.GetBrowserPath()}");
 
-BrowserFetcherOptions browserFetcherOptions = new() { Path = Helper.GetBrowserPath(), Browser = SupportedBrowser.Chrome };
+BrowserFetcherOptions browserFetcherOptions =
+    new() { Path = Helper.GetBrowserPath(), Browser = SupportedBrowser.Chrome };
 BrowserFetcher? browserFetcher = new(browserFetcherOptions);
 await browserFetcher.DownloadAsync();
 
@@ -95,15 +97,16 @@ if (!apiInitSuccess)
 HosterModel? sto = HosterHelper.GetHosterByEnum(Hoster.STO);
 HosterModel? aniworld = HosterHelper.GetHosterByEnum(Hoster.AniWorld);
 
-DownloaderPreferencesModel? downloaderPreferences = await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences");
+var downloaderPreferences =
+    await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences");
 
-WebProxy? proxy = default;
+WebProxy? proxy = null;
 
 if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
 {
     app.Logger.LogInformation($"{DateTime.Now} | Proxy configured: {downloaderPreferences.ProxyUri}");
 
-    proxy = ProxyFactory.CreateProxy(new ProxyAccountModel()
+    proxy = ProxyFactory.CreateProxy(new ProxyAccountModel
     {
         Uri = downloaderPreferences.ProxyUri,
         Username = downloaderPreferences.ProxyUsername,
@@ -126,7 +129,8 @@ bool hosterReachableSTO = await HosterHelper.HosterReachable(sto, proxy);
 
 if (!hosterReachableSTO)
 {
-    app.Logger.LogError($"{DateTime.Now} | Hoster: {sto.Host} not reachable. Maybe there is a captcha you need to solve.");
+    app.Logger.LogError(
+        $"{DateTime.Now} | Hoster: {sto.Host} not reachable. Maybe there is a captcha you need to solve.");
     return;
 }
 
@@ -134,7 +138,8 @@ bool hosterReachableAniworld = await HosterHelper.HosterReachable(aniworld, prox
 
 if (!hosterReachableAniworld)
 {
-    app.Logger.LogError($"{DateTime.Now} | Hoster: {aniworld.Host} not reachable. Maybe there is a captcha you need to solve.");
+    app.Logger.LogError(
+        $"{DateTime.Now} | Hoster: {aniworld.Host} not reachable. Maybe there is a captcha you need to solve.");
     return;
 }
 
@@ -172,7 +177,8 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
 {
     OpenBrowser(hostUrl);
 }

@@ -1,4 +1,6 @@
-﻿string DownloadsPath = Path.Combine(Directory.GetCurrentDirectory(), "Updates");
+﻿using System.Diagnostics;
+
+string DownloadsPath = Path.Combine(Directory.GetCurrentDirectory(), "Updates");
 string DestPath = Directory.GetCurrentDirectory();
 
 Console.WriteLine("===================\n\nInstalliere Updates...");
@@ -9,7 +11,7 @@ DirectoryInfo? folder = new(DownloadsPath);
 
 if (folder.Exists)
 {
-    FileInfo[]? files = folder.GetFiles("*", SearchOption.TopDirectoryOnly);
+    var files = folder.GetFiles("*", SearchOption.TopDirectoryOnly);
     files.ToList().ForEach(f =>
     {
         if (f.Name != "Starter.exe")
@@ -23,6 +25,7 @@ if (folder.Exists)
                 Console.WriteLine(ex);
                 Console.ReadKey();
             }
+
             Console.WriteLine($"{f.Name} kopiert!");
         }
     });
@@ -43,6 +46,7 @@ if (folder.Exists)
             Console.WriteLine(ex);
             Console.ReadKey();
         }
+
         Console.WriteLine($"{f.Name} kopiert!");
     });
 
@@ -52,7 +56,8 @@ else
 {
     return;
 }
+
 Console.WriteLine("\n\nUpdates installiert...Neustart...\n\n===================");
 await Task.Delay(2500);
 
-System.Diagnostics.Process.Start("ProxyMov_DownloadServer.exe");
+Process.Start("ProxyMov_DownloadServer.exe");

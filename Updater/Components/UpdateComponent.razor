@@ -1,11 +1,10 @@
-﻿@using Updater.Interfaces
-@using Updater.Models
+﻿@using System.Diagnostics
 @inject IUpdateService UpdateService
 
 @if (UpdateInProgress)
 {
     <HxProgress Height="3">
-        <HxProgressBar Value="UpdateProgress" Color="ThemeColor.Success" />
+        <HxProgressBar Value="UpdateProgress" Color="ThemeColor.Success"/>
     </HxProgress>
     <div class="text-center text-success mt-2">
         <h5>@($"{UpdateProgress:F0}%")</h5>
@@ -30,14 +29,20 @@
                     @if (!UpdateInProgress)
                     {
                         <h6 class="text-warning me-2 align-middle d-inline">Es ist ein neues Update verfügbar!</h6>
-                        <HxButton Icon="BootstrapIcon.FileEarmarkZip" Size="ButtonSize.Small" CssClass="me-2 align-middle d-inline" Color="ThemeColor.Success" OnClick="DownloadUpdate">Update</HxButton>
+                        <HxButton Icon="BootstrapIcon.FileEarmarkZip" Size="ButtonSize.Small"
+                                  CssClass="me-2 align-middle d-inline" Color="ThemeColor.Success"
+                                  OnClick="DownloadUpdate">Update
+                        </HxButton>
                         <a target="_blank" href="@UpdateDetails.Changelog">
-                            <HxButton Icon="BootstrapIcon.FileTextFill" Size="ButtonSize.Small" CssClass="align-middle d-inline" Color="ThemeColor.Secondary">Patchnotes</HxButton>
+                            <HxButton Icon="BootstrapIcon.FileTextFill" Size="ButtonSize.Small"
+                                      CssClass="align-middle d-inline" Color="ThemeColor.Secondary">Patchnotes
+                            </HxButton>
                         </a>
                     }
                     else
                     {
-                        <HxSpinner CssClass="align-middle me-2" Color="ThemeColor.Secondary" Size="SpinnerSize.Small"></HxSpinner>
+                        <HxSpinner CssClass="align-middle me-2" Color="ThemeColor.Secondary"
+                                   Size="SpinnerSize.Small"></HxSpinner>
                         <h6 class="text-secondary align-middle d-inline">Updates laden...</h6>
                     }
                 </div>
@@ -48,7 +53,9 @@
 else
 {
     <div class="p-3 mb-4 text-center">
-        <HxButton OnClick="InstallUpdate" Icon="BootstrapIcon.Dropbox" Size="ButtonSize.Small" CssClass="me-2 align-middle d-inline" Color="ThemeColor.Success">Update installieren</HxButton>
+        <HxButton OnClick="InstallUpdate" Icon="BootstrapIcon.Dropbox" Size="ButtonSize.Small"
+                  CssClass="me-2 align-middle d-inline" Color="ThemeColor.Success">Update installieren
+        </HxButton>
     </div>
 }
 
@@ -60,8 +67,7 @@ else
 }
 
 @code {
-    [Parameter]
-    public bool ForceDownloadButton { get; set; }
+    [Parameter] public bool ForceDownloadButton { get; set; }
 
     private bool CheckingForUpdates { get; set; }
     private bool UpdateAvailable { get; set; }
@@ -69,7 +75,7 @@ else
     private bool UpdateDownloadFinished { get; set; }
     private UpdateDetailsModel? UpdateDetails;
 
-    private float UpdateProgress = 0f;
+    private float UpdateProgress;
 
     protected override void OnInitialized()
     {
@@ -105,7 +111,7 @@ else
         IProgress<float> progress = new Progress<float>(e => ReportProgress(e));
 
         await UpdateService.DownloadUpdate(UpdateDetails, progress);
-        await Updater.Services.UpdateService.UnpackUpdate();
+        await Services.UpdateService.UnpackUpdate();
 
         UpdateInProgress = false;
         UpdateDownloadFinished = true;
@@ -121,7 +127,8 @@ else
     private void InstallUpdate()
     {
         string starterPath = "Starter.exe";
-        System.Diagnostics.Process.Start(starterPath);
+        Process.Start(starterPath);
         Environment.Exit(0);
     }
+
 }

@@ -1,11 +1,10 @@
-﻿namespace ProxyMov_DownloadServer.Enums
+﻿namespace ProxyMov_DownloadServer.Enums;
+
+public enum CronJobState
 {
-    public enum CronJobState
-    {
-        Undefined,
-        WaitForNextCycle,
-        CheckingForDownloads,
-        Running,
-        Paused
-    }
+    Undefined,
+    WaitForNextCycle,
+    CheckingForDownloads,
+    Running,
+    Paused
 }

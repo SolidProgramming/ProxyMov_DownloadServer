@@ -1,79 +1,92 @@
-﻿@inject IHxMessengerService ToastService
+﻿@using ProxyMov_DownloadServer.I18nText
+@using Toolbelt.Blazor.I18nText
+@inject IHxMessengerService ToastService
 @inject ILogger<DownloadQueComponent> DownloadQueComponentLogger
 @inject IApiService ApiService
-@inject Toolbelt.Blazor.I18nText.I18nText I18nText
+@inject I18nText I18nText
 
-<div class="mt-5">    
+<div class="mt-5">
     <div style="overflow-y: auto;">
         <table class="table table-striped">
             <thead>
-                <tr>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">#</th>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Name</th>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
-                    <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
-                    <th scope="col" class="text-center"></th>
-                    <th scope="col" class="d-table-cell"></th>
-                    <th scope="col" class="d-none d-md-table-cell"></th>
-                    <th scope="col" class="d-none d-md-table-cell"></th>
-                </tr>
+            <tr>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">#</th>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Name</th>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">@LangText["Season"]</th>
+                <th scope="col" class="text-center" style="font-family: 'Roboto', sans-serif;">Episode</th>
+                <th scope="col" class="text-center"></th>
+                <th scope="col" class="d-table-cell"></th>
+                <th scope="col" class="d-none d-md-table-cell"></th>
+                <th scope="col" class="d-none d-md-table-cell"></th>
+            </tr>
             </thead>
             <tbody>
-                @if (Downloads is not null)
+            @if (Downloads is not null)
+            {
+                var i = 1;
+                @foreach (var download in Downloads.Take(VisibleQueueEntriesCount))
                 {
-                    int i = 1;                    
-                    @foreach (EpisodeDownloadModel download in Downloads.Take(VisibleQueueEntriesCount))
+                    @if (i == 1)
                     {
-                        @if (i == 1)
-                        {
-                            TextClass = "text-warning";
-                        }
-                        else
-                        {
-                            TextClass = "";
-                        }
-                        <tr>
-                            <td class="text-center align-middle @TextClass" width="50" style="font-family: 'Roboto', sans-serif;">
-                                @if (i == 1)
-                                {
-                                    <span>Next</span>
-                                }
-                                else
-                                {
-                                    <span>@i</span>
-                                }
-                            </td>
-                            <td class="text-center align-middle @TextClass" style="font-family: 'Roboto', sans-serif;">
-                                @download.Download.Name
-                            </td>
-                            <td class="text-center align-middle @TextClass" width="70" style="font-family: 'Roboto', sans-serif;">
-                                @($"S{download.Download.Season:D2}")
-                            </td>
-                            <td class="text-center align-middle @TextClass" width="70" style="font-family: 'Roboto', sans-serif;">
-                                @($"E{download.Download.Episode:D2}")
-                            </td>
-                            <td class="text-center align-middle" width="90">
-                                <LanguageFlagComponent Languages="@download.Download.LanguageFlag"></LanguageFlagComponent>
-                            </td>
-                            <td class="d-md-none text-center align-middle" width="50">
-                                <HxButton OnClick="@(() => ToggleStopMark(download))" Color="@(download.HasStopMark ? ThemeColor.Info : ThemeColor.Secondary)" Icon="@(download.HasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
-                                <HxButton CssClass="my-2" OnClick="@(() => SkipDownload(download))" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
-                                <HxButton OnClick="@(() => RemoveDownloadFromQueue(download))" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
-                            </td>
-                            <td class="d-none d-md-table-cell text-center align-middle" width="50">
-                                <HxButton OnClick="@(() => ToggleStopMark(download))" Color="@(download.HasStopMark ? ThemeColor.Info : ThemeColor.Secondary)" Icon="@(download.HasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
-                            </td>
-                            <td class="d-none d-md-table-cell text-center align-middle" width="50">
-                                <HxButton OnClick="@(() => SkipDownload(download))" Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
-                            </td>
-                            <td class="d-none d-md-table-cell text-center align-middle" width="50">
-                                <HxButton OnClick="@(() => RemoveDownloadFromQueue(download))" Color="ThemeColor.Danger" Icon="BootstrapIcon.XLg"></HxButton>
-                            </td>
-                        </tr>
-                        i++;
+                        TextClass = "text-warning";
+                    }
+                    else
+                    {
+                        TextClass = "";
                     }
 
+                    <tr>
+                        <td class="text-center align-middle @TextClass" width="50"
+                            style="font-family: 'Roboto', sans-serif;">
+                            @if (i == 1)
+                            {
+                                <span>Next</span>
+                            }
+                            else
+                            {
+                                <span>@i</span>
+                            }
+                        </td>
+                        <td class="text-center align-middle @TextClass" style="font-family: 'Roboto', sans-serif;">
+                            @download.Download.Name
+                        </td>
+                        <td class="text-center align-middle @TextClass" width="70"
+                            style="font-family: 'Roboto', sans-serif;">
+                            @($"S{download.Download.Season:D2}")
+                        </td>
+                        <td class="text-center align-middle @TextClass" width="70"
+                            style="font-family: 'Roboto', sans-serif;">
+                            @($"E{download.Download.Episode:D2}")
+                        </td>
+                        <td class="text-center align-middle" width="90">
+                            <LanguageFlagComponent Languages="@download.Download.LanguageFlag"></LanguageFlagComponent>
+                        </td>
+                        <td class="d-md-none text-center align-middle" width="50">
+                            <HxButton OnClick="@(() => ToggleStopMark(download))"
+                                      Color="@(download.HasStopMark ? ThemeColor.Info : ThemeColor.Secondary)"
+                                      Icon="@(download.HasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
+                            <HxButton CssClass="my-2" OnClick="@(() => SkipDownload(download))"
+                                      Color="ThemeColor.Secondary" Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                            <HxButton OnClick="@(() => RemoveDownloadFromQueue(download))" Color="ThemeColor.Danger"
+                                      Icon="BootstrapIcon.XLg"></HxButton>
+                        </td>
+                        <td class="d-none d-md-table-cell text-center align-middle" width="50">
+                            <HxButton OnClick="@(() => ToggleStopMark(download))"
+                                      Color="@(download.HasStopMark ? ThemeColor.Info : ThemeColor.Secondary)"
+                                      Icon="@(download.HasStopMark ? BootstrapIcon.FlagFill : BootstrapIcon.Flag)"></HxButton>
+                        </td>
+                        <td class="d-none d-md-table-cell text-center align-middle" width="50">
+                            <HxButton OnClick="@(() => SkipDownload(download))" Color="ThemeColor.Secondary"
+                                      Icon="BootstrapIcon.SkipForwardFill"></HxButton>
+                        </td>
+                        <td class="d-none d-md-table-cell text-center align-middle" width="50">
+                            <HxButton OnClick="@(() => RemoveDownloadFromQueue(download))" Color="ThemeColor.Danger"
+                                      Icon="BootstrapIcon.XLg"></HxButton>
+                        </td>
+                    </tr>
+                    i++;
                 }
+            }
             </tbody>
         </table>
     </div>
@@ -81,10 +94,14 @@
         @if (Downloads is not null)
         {
             <div class="col text-center">
-                <HxButton Enabled="(VisibleQueueEntriesCount > MinQueEntriesCount)" CssClass="w-100" OnClick="DecreaseVisibleQueueEntriesCount" Color="ThemeColor.Secondary" Icon="BootstrapIcon.ArrowsCollapse"></HxButton>
+                <HxButton Enabled="VisibleQueueEntriesCount > MinQueEntriesCount" CssClass="w-100"
+                          OnClick="DecreaseVisibleQueueEntriesCount" Color="ThemeColor.Secondary"
+                          Icon="BootstrapIcon.ArrowsCollapse"></HxButton>
             </div>
             <div class="col text-center">
-                <HxButton Enabled="(VisibleQueueEntriesCount < Downloads.Count)" CssClass="w-100" OnClick="IncreaseVisibleQueueEntriesCount" Color="ThemeColor.Secondary" Icon="BootstrapIcon.ArrowsExpand"></HxButton>
+                <HxButton Enabled="VisibleQueueEntriesCount < Downloads.Count" CssClass="w-100"
+                          OnClick="IncreaseVisibleQueueEntriesCount" Color="ThemeColor.Secondary"
+                          Icon="BootstrapIcon.ArrowsExpand"></HxButton>
             </div>
         }
         else if (Downloads is null && CronJobState == CronJobState.CheckingForDownloads)
@@ -110,10 +127,9 @@
 </div>
 
 @code {
-    [Parameter]
-    public EventCallback<int> OnDownloadSkippOrRemove { get; set; }
+    [Parameter] public EventCallback<int> OnDownloadSkippOrRemove { get; set; }
 
-    private I18nText.Lang LangText = new();
+    private Lang LangText = new();
 
     private string? TextClass { get; set; }
     private List<EpisodeDownloadModel>? Downloads;
@@ -126,11 +142,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        LangText = await I18nText.GetTextTableAsync<I18nText.Lang>(this);
+        LangText = await I18nText.GetTextTableAsync<Lang>(this);
     }
 
     protected override void OnAfterRender(bool firstRender)
-    {       
+    {
         if (firstRender)
         {
             VisibleQueueEntriesCount = 8;
@@ -141,7 +157,9 @@
             Downloads = CronJob.DownloadQue?.ToList().Except(CronJob.SkippedDownloads).ToList();
 
             if (Downloads is null || Downloads.Count == 0)
+            {
                 return;
+            }
 
             StateHasChanged();
             OnDownloadSkippOrRemove.InvokeAsync(Downloads.Count);
@@ -169,8 +187,6 @@
                 break;
 
             case CronJobState.CheckingForDownloads:
-                break;
-            default:
                 break;
         }
 
@@ -233,7 +249,7 @@
     {
         if (!download.HasStopMark)
         {
-            var bla = Downloads.Where(_ => _.HasStopMark);
+            IEnumerable<EpisodeDownloadModel> bla = Downloads.Where(_ => _.HasStopMark);
 
             foreach (EpisodeDownloadModel episodeDownload in bla)
             {
@@ -250,7 +266,7 @@
         }
         else
         {
-            CronJob.StopMarkDownload = default;
+            CronJob.StopMarkDownload = null;
             ToastService.AddMessage(InfoMessage.StopmarkUnset, MessageType.Secondary);
         }
 
@@ -260,7 +276,9 @@
     private void IncreaseVisibleQueueEntriesCount()
     {
         if (Downloads is null || Downloads.Count == 0)
+        {
             return;
+        }
 
         int newEntriesCount = VisibleQueueEntriesCount + 5;
 
@@ -275,16 +293,18 @@
     private void DecreaseVisibleQueueEntriesCount()
     {
         if (Downloads is null || Downloads.Count == 0)
+        {
             return;
+        }
 
         int newEntriesCount = VisibleQueueEntriesCount - 5;
 
         if (newEntriesCount < MinQueEntriesCount)
         {
             newEntriesCount = MinQueEntriesCount;
-
         }
 
         VisibleQueueEntriesCount = newEntriesCount;
     }
+
 }

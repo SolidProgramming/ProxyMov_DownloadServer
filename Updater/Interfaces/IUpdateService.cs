@@ -1,13 +1,12 @@
 ﻿using Updater.Models;
 
-namespace Updater.Interfaces
-{
-    public interface IUpdateService
-    {
-        event EventHandler OnUpdateCheckStarted;
-        event EventHandler<(bool, UpdateDetailsModel?)> OnUpdateCheckFinished;
+namespace Updater.Interfaces;
 
-        Task CheckForUpdates(string assemblyVersion);
-        Task DownloadUpdate(UpdateDetailsModel updateDetails, IProgress<float> progress);
-    }
+public interface IUpdateService
+{
+    event EventHandler OnUpdateCheckStarted;
+    event EventHandler<(bool, UpdateDetailsModel?)> OnUpdateCheckFinished;
+
+    Task CheckForUpdates(string assemblyVersion);
+    Task DownloadUpdate(UpdateDetailsModel updateDetails, IProgress<float> progress);
 }

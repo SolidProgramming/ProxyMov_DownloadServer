@@ -1,10 +1,9 @@
-﻿namespace ProxyMov_DownloadServer.Enums
+﻿namespace ProxyMov_DownloadServer.Enums;
+
+public enum ConverterState
 {
-    public enum ConverterState
-    {
-        Undefined,
-        Idle,
-        Downloading,
-        Stopped
-    }
+    Undefined,
+    Idle,
+    Downloading,
+    Stopped
 }

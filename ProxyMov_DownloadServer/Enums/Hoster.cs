@@ -1,9 +1,8 @@
-﻿namespace ProxyMov_DownloadServer.Enums
+﻿namespace ProxyMov_DownloadServer.Enums;
+
+public enum Hoster
 {
-    public enum Hoster
-    {
-        Unsupported,
-        STO,
-        AniWorld,
-    }
+    Unsupported,
+    STO,
+    AniWorld
 }

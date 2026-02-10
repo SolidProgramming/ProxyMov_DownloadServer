@@ -1,0 +1,10 @@
+﻿@inject IHostApplicationLifetime AppLifetime
+@inherits LayoutComponentBase
+
+<div class="d-lg-flex min-vh-100">
+    <NavComponent></NavComponent>
+    <HxMessenger CssClass="mx-3 my-3" Position="ToastContainerPosition.BottomEnd"/>
+    <div class="main flex-grow-1 overflow-hidden">
+        @Body
+    </div>
+</div>

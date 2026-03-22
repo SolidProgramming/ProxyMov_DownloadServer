@@ -97,6 +97,14 @@ internal class CronJob(
 
         if (CronJobState != CronJobState.WaitForNextCycle) return;
 
+        if (HttpClient is null)
+        {
+            string errorMessage = $"{DateTime.Now} | Http Client: {nameof(HttpClient)} is not initialized!";
+            logger.LogError(errorMessage);
+            CronJobErrorEvent?.Invoke(MessageType.Error, errorMessage);
+            return;
+        }
+
         SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
         if (settings is null || string.IsNullOrEmpty(settings.DownloadPath) || string.IsNullOrEmpty(settings.ApiUrl))
@@ -114,9 +122,7 @@ internal class CronJob(
 
         SetCronJobState(CronJobState.CheckingForDownloads);
 
-        DownloaderPreferencesModel? downloaderPreferences =
-            await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences");
-
+        DownloaderPreferencesModel? downloaderPreferences = await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences") ?? new();
         string? logMessage;
 
         SkippedDownloads.Clear();
@@ -144,24 +150,24 @@ internal class CronJob(
                 !ConverterService.AbortIsSkip)
                 break;
 
-            EpisodeDownloadModel episodeDownload = DownloadQue.Dequeue();
+            EpisodeDownloadModel episode = DownloadQue.Dequeue();
 
-            if (SkippedDownloads.Contains(episodeDownload)) continue;
+            if (SkippedDownloads.Contains(episode)) continue;
 
             SetCronJobDownloads(DownloadQue.Count, 0);
 
-            if (string.IsNullOrEmpty(episodeDownload.Download.Name)) continue;
+            if (string.IsNullOrEmpty(episode.Download.Name)) continue;
 
-            string? originalEpisodeName = episodeDownload.Download.Name;
+            string? originalEpisodeName = episode.Download.Name;
 
             string url = "";
 
-            if (episodeDownload.StreamingPortal.Name == Hoster.STO.ToString())
+            if (episode.StreamingPortal.Name == Hoster.STO.ToString())
                 url =
-                    $"https://s.to/serie/stream{episodeDownload.Download.Path}/{string.Format(Globals.LinkBlueprint, episodeDownload.Download.Season, episodeDownload.Download.Episode)}";
-            else if (episodeDownload.StreamingPortal.Name == Hoster.AniWorld.ToString())
+                    $"https://s.to/serie/stream{episode.Download.Path}/{string.Format(Globals.LinkBlueprint, episode.Download.Season, episode.Download.Episode)}";
+            else if (episode.StreamingPortal.Name == Hoster.AniWorld.ToString())
                 url =
-                    $"https://aniworld.to/anime/stream{episodeDownload.Download.Path}/{string.Format(Globals.LinkBlueprint, episodeDownload.Download.Season, episodeDownload.Download.Episode)}";
+                    $"https://aniworld.to/anime/stream{episode.Download.Path}/{string.Format(Globals.LinkBlueprint, episode.Download.Season, episode.Download.Episode)}";
             else
                 continue;
 
@@ -197,10 +203,8 @@ internal class CronJob(
 
             if (languageRedirectLinks == null || languageRedirectLinks.Count == 0) continue;
 
-            episodeDownload.Download.Name = episodeDownload.Download.Name.GetValidFileName();
-
             IEnumerable<Language> episodeLanguages =
-                episodeDownload.Download.LanguageFlag.GetFlags<Language>(Language.None);
+                episode.Download.LanguageFlag.GetFlags<Language>(Language.None);
             IEnumerable<Language> redirectLanguages =
                 languageRedirectLinks.Keys.Where(lang => episodeLanguages.Contains(lang));
 
@@ -212,29 +216,28 @@ internal class CronJob(
             {
                 SetCronJobDownloads(DownloadQue.Count, downloadLanguages.Count() - finishedDownloadsCount);
 
-                if (episodeDownload.StreamingPortal.Name == Hoster.STO.ToString())
+                if (episode.StreamingPortal.Name == Hoster.STO.ToString())
                     url = $"https://s.to{languageRedirectLinks[language][0]}";
-                else if (episodeDownload.StreamingPortal.Name == Hoster.AniWorld.ToString())
+                else if (episode.StreamingPortal.Name == Hoster.AniWorld.ToString())
                     url = $"https://aniworld.to{languageRedirectLinks[language][0]}";
                 else
                     continue;
 
-                string? m3u8Url = await GetEpisodeM3U8(url, downloaderPreferences);
+                episode.M3U8Url = await GetEpisodeM3U8(url, downloaderPreferences);
 
-                if (string.IsNullOrEmpty(m3u8Url))
+                if (string.IsNullOrEmpty(episode.M3U8Url))
                 {
                     logMessage =
-                        $"Für \"{originalEpisodeName} | S{episodeDownload.Download.Season:D2} E{episodeDownload.Download.Episode:D2}\" wurde keine Video Source gefunden.";
+                        $"Für \"{originalEpisodeName} | S{episode.Download.Season:D2} E{episode.Download.Episode:D2}\" wurde keine Video Source gefunden.";
                     CronJobErrorEvent?.Invoke(MessageType.Secondary, logMessage);
                     continue;
                 }
 
-                logger.LogInformation($"{DateTime.Now} | Stream Url: {m3u8Url}");
+                logger.LogInformation($"{DateTime.Now} | Stream Url: {episode.M3U8Url}");
 
-                episodeDownload.Download.Name = $"{originalEpisodeName.GetValidFileName()}[{language}]";
+                episode.Download.Name = originalEpisodeName;
 
-                CommandResultExt? result = await converterService.StartDownload(m3u8Url, episodeDownload.Download,
-                    settings.DownloadPath, downloaderPreferences, settings.ConverterSettings);
+                CommandResultExt? result = await converterService.StartDownload(episode, settings.DownloadPath, downloaderPreferences, settings.ConverterSettings, language);
 
                 finishedDownloadsCount++;
 
@@ -249,7 +252,7 @@ internal class CronJob(
                 {
                     CronJobErrorEvent?.Invoke(MessageType.Secondary, InfoMessage.EpisodeDownloadSkippedFileExists);
 
-                    await RemoveDownload(episodeDownload);
+                    await RemoveDownload(episode);
 
                     continue;
                 }
@@ -273,12 +276,12 @@ internal class CronJob(
 
                     if (finishedDownloadsCount >= downloadLanguages.Count())
                     {
-                        await RemoveDownload(episodeDownload);
+                        await RemoveDownload(episode);
                     }
                 }
             }
 
-            if (StopMarkDownload is not null && StopMarkDownload.Download == episodeDownload.Download)
+            if (StopMarkDownload is not null && StopMarkDownload.Download == episode.Download)
             {
                 await Abort();
                 quartzService.CancelJob();

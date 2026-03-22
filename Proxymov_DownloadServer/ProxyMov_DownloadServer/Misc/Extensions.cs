@@ -67,6 +67,15 @@ internal static class Extensions
         { Language.EngSub, "2" }
     };
 
+    private static readonly Dictionary<Language, string> LangeNameMap = new()
+    {
+        { Language.GerDub, "DE" },
+        { Language.GerSub, "DE (Subbed)" },
+        { Language.EngDubGerSub, "EN + DE (Subbed)" },
+        { Language.EngDub, "EN" },
+        { Language.EngSub, "EN (Subbed)" }
+    };
+
     internal static string ToVideoCodec(this VideoCodec vc)
     {
         return VideoCodecsCollection[vc];
@@ -120,6 +129,13 @@ internal static class Extensions
         return FileFormatsCollection.Single(x => x.Value == ff).Key;
     }
 
+    internal static string? ToLanguageName(this Language language)
+    {
+        if (LangeNameMap.TryGetValue(language, out string? value)) return value;
+
+        return null;
+    }
+
     internal static string GetValidFileName(this string name)
     {
         string regexSearch = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars()) +
@@ -140,7 +156,7 @@ internal static class Extensions
 
     internal static string? ToVOELanguageKey(this Language language)
     {
-        if (VOELanguageKeyCollection.ContainsKey(language)) return VOELanguageKeyCollection[language];
+        if (VOELanguageKeyCollection.TryGetValue(language, out string? value)) return value;
 
         return null;
     }

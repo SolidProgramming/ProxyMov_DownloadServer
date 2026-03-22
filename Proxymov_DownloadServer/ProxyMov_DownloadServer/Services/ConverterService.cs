@@ -1,7 +1,8 @@
-﻿using System.Runtime.InteropServices;
+﻿using CliWrap;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
-using CliWrap;
 
 namespace ProxyMov_DownloadServer.Services;
 
@@ -15,6 +16,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
     public delegate void ConvertStartedEvent(DownloadModel download);
 
     private const int MaxGetStreamDurationRetries = 3;
+    private const int MaxGetVideoFileInfoRetries = 2;
 
     private static long PreviousDownloadSize;
     private static DateTime? FFMPEGStartTime;
@@ -54,8 +56,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return true;
     }
 
-    public async Task<CommandResultExt?> StartDownload(string streamUrl, DownloadModel download, string downloadPath,
-        DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings)
+    public async Task<CommandResultExt?> StartDownload(EpisodeDownloadModel episode, string downloadPath,
+        DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, Language language)
     {
         if (!IsInitialized)
         {
@@ -63,9 +65,24 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             return null;
         }
 
-        string filePath = GetFileName(download, downloadPath, converterSettings);
+        if (string.IsNullOrWhiteSpace(episode.M3U8Url))
+        {
+            throw new ArgumentException("M3U8 URL is null or empty.", nameof(episode.M3U8Url));
+        }
 
-        TimeSpan streamDuration = await GetStreamDuration(streamUrl, downloaderPreferences);
+        VideoFileInfo? videoFileInfo = await GetVideoFileInfo(episode.M3U8Url, downloaderPreferences);
+
+        if (videoFileInfo == null)
+        {
+            logger.LogError($"{DateTime.Now} | No stream duration found!");
+            return null;
+        }
+
+        episode.VideoFileInfo = videoFileInfo;
+
+        string filePath = GetFileName(episode, downloadPath, converterSettings, language);
+
+        TimeSpan streamDuration = await GetStreamDuration(episode.M3U8Url, downloaderPreferences);
 
         if (streamDuration == TimeSpan.Zero)
         {
@@ -73,7 +90,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             return null;
         }
 
-        download.StreamDuration = streamDuration;
+        episode.Download.StreamDuration = streamDuration;
 
         if (File.Exists(filePath))
         {
@@ -89,9 +106,9 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             }
         }
 
-        Download = download;
+        Download = episode.Download;
 
-        ConverterStateChanged?.Invoke(ConverterState.Downloading, download);
+        ConverterStateChanged?.Invoke(ConverterState.Downloading, episode.Download);
 
         string args = "";
         string proxyAuthArgs = "";
@@ -112,7 +129,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
                 useHwAccell = true;
 
             args =
-                $"-y {(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} {(useHwAccell ? hwAccell : "")} -i \"{streamUrl}\" -acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
+                $"-y {(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} {(useHwAccell ? hwAccell : "")} -i \"{episode.M3U8Url}\" -acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
         }
         else
         {
@@ -121,7 +138,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         string binPath = Helper.GetFFMPEGPath();
 
-        ConvertStarted?.Invoke(download);
+        ConvertStarted?.Invoke(episode.Download);
 
         Download.DownloadStartTime = DateTime.Now;
 
@@ -180,46 +197,47 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             logger.LogInformation($"{DateTime.Now} | {InfoMessage.ConverterChangedState} {state}");
     }
 
-    private static string GetFileName(DownloadModel download, string downloadPath,
-        ConverterSettingsModel? converterSettings)
+    private static string GetFileName(EpisodeDownloadModel episode, string downloadPath,
+        ConverterSettingsModel? converterSettings, Language language)
     {
         string folderPath = "";
         string seriesFolderPath = "";
         string seasonFolderName;
         string episodeFolderName;
 
-        seasonFolderName = $"S{download.Season:D2}";
-        episodeFolderName = $"E{download.Episode:D2}";
+        string? languageName = language.ToLanguageName();
+        string fileInfo = $"[{episode.VideoFileInfo.Resolution}][{episode.VideoFileInfo.AudioCodec}][{episode.VideoFileInfo.VideoCodec}]".ToUpper(); 
+
+        seasonFolderName = $"Season {episode.Download.Season:D2}";
+        episodeFolderName = $"{episode.Download.Name} - S{episode.Download.Season:D2}E{episode.Download.Episode:D2} ({languageName}) {fileInfo}".GetValidFileName();
 
         if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
         {
             folderPath = @"/data/downloads";
 
-            seriesFolderPath = Path.Combine(folderPath, download.Name);
+            seriesFolderPath = Path.Combine(folderPath, episode.Download.Name);
 
             folderPath = Path.Combine(seriesFolderPath, seasonFolderName);
         }
         else
         {
-            seriesFolderPath = Path.Combine(downloadPath, download.Name);
+            seriesFolderPath = Path.Combine(downloadPath, episode.Download.Name);
 
-            folderPath = Path.Combine(downloadPath, download.Name, seasonFolderName);
+            folderPath = Path.Combine(downloadPath, episode.Download.Name, seasonFolderName);
         }
 
         if (!Directory.Exists(seriesFolderPath)) Directory.CreateDirectory(seriesFolderPath);
 
         if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
 
-        string filePath = $"{download.Name}_{seasonFolderName}{episodeFolderName}.ts";
+        string filePath = $"{Path.Combine(folderPath, episodeFolderName)}.ts";
 
         if (converterSettings is not null && converterSettings.FileFormat != FileFormat.ORIGINAL)
         {
-            string filePathWithExtension = Path.ChangeExtension(filePath, converterSettings.FileFormat.ToFileFormat());
-
-            return Path.Combine(folderPath, filePathWithExtension);
+            return Path.ChangeExtension(filePath, converterSettings.FileFormat.ToFileFormat());
         }
 
-        return Path.Combine(folderPath, filePath);
+        return Path.Combine(folderPath, episodeFolderName).GetValidFileName();
     }
 
     private static void ReadOutput(string output)
@@ -408,6 +426,110 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         if (string.IsNullOrEmpty(output) || output == "N/A") return TimeSpan.Zero;
 
         return TimeSpan.Parse(output);
+    }
+
+    public async Task<VideoFileInfo?> GetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
+    {
+        VideoFileInfo? videoQualityInfo;
+
+        for (int attempt = 1; attempt < MaxGetVideoFileInfoRetries; attempt++)
+        {
+            videoQualityInfo = await TryGetVideoFileInfo(streamUrl, downloaderPreferences, attempt);
+
+            if (videoQualityInfo is not null)
+            {
+                return videoQualityInfo;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<VideoFileInfo?> TryGetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, int attemptCount)
+    {
+        int waitDuration = attemptCount * 5;
+
+        StringBuilder stdOutBuffer = new();
+
+        string ffProbeBinPath = Helper.GetFFProbePath();
+
+        string proxyAuthArgs = "";
+        if (downloaderPreferences.UseProxy && !string.IsNullOrWhiteSpace(downloaderPreferences.ProxyUri))
+        {
+            string proxyUri = downloaderPreferences.ProxyUri.Replace("http://", "").Replace("https://", "");
+            proxyAuthArgs = $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
+        }
+
+        string arguments = $"{(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} -v error -print_format json -show_streams \"{streamUrl}\"";
+
+        CancellationTokenSource cts = new(TimeSpan.FromSeconds(waitDuration));
+        CancellationToken token = cts.Token;
+
+        try
+        {
+            await Cli.Wrap(ffProbeBinPath)
+                .WithArguments(arguments)
+                .WithValidation(CommandResultValidation.None)
+                .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
+                .ExecuteAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning($"{DateTime.Now} | Failed to get stream/video quality info! Retries left: {MaxGetVideoFileInfoRetries - attemptCount}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"{DateTime.Now} | FFPROBE Info: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            cts.Dispose();
+        }
+
+        string json = stdOutBuffer.ToString();
+        stdOutBuffer.Clear();
+
+        if (string.IsNullOrEmpty(json))
+            return null;
+
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(json);
+            JsonElement streams = doc.RootElement.GetProperty("streams");
+
+            string resolution = "", videoCodec = "", audioCodec = "";
+
+            foreach (JsonElement stream in streams.EnumerateArray())
+            {
+                if (stream.TryGetProperty("codec_type", out JsonElement codecType))
+                {
+                    string type = codecType.GetString() ?? "";
+
+                    if (type == "video")
+                    {
+                        if (stream.TryGetProperty("height", out JsonElement height))
+                            resolution = $"{height.GetInt32()}p";
+
+                        if (stream.TryGetProperty("codec_name", out JsonElement codec))
+                            videoCodec = codec.GetString();
+                    }
+                    else if (type == "audio")
+                    {
+                        if (stream.TryGetProperty("codec_name", out JsonElement codec))
+                            audioCodec = codec.GetString();
+                    }
+                }
+            }
+
+            return new VideoFileInfo { Resolution = resolution, VideoCodec = videoCodec, AudioCodec = audioCodec };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"{DateTime.Now} | Failed to parse video quality info: {ex.Message}");
+            return null;
+        }
     }
 
     public static DownloadModel? GetDownload()

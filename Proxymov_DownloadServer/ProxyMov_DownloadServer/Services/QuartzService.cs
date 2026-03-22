@@ -67,7 +67,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory) : IQuartzService
                 .Build();
         }
 
-        if (Scheduler != null)
+        if (Scheduler != null && Trigger is not null)
         {
             await Scheduler.RescheduleJob(Trigger.Key, Trigger, CancellationToken);
         }
@@ -75,7 +75,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory) : IQuartzService
 
     public void CancelJob()
     {
-        CancellationTokenSource.Cancel();
+        CancellationTokenSource?.Cancel();
 
         if (JobKey != null) Scheduler?.PauseJob(JobKey, CancellationToken);
     }

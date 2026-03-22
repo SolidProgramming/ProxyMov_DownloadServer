@@ -38,4 +38,7 @@ internal class ErrorMessage
 
     internal const string RetrieveDownloaderPreferencesFail =
         "Beim Abrufen der Einstellungen ist ein Fehler aufgetreten!";
+
+    internal const string RetrieveFileInfoFail =
+        "Beim Abrufen der Metadaten Informationen zur ausgewählten Episode ist ein Fehler aufgetreten!";
 }

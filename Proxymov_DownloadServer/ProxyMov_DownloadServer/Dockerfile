@@ -2,23 +2,56 @@
 
 # Diese Stufe wird verwendet, wenn sie von VS im Schnellmodus ausgeführt wird (Standardeinstellung für Debugkonfiguration).
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-RUN apt-get update
-RUN apt-get install -y wget unzip fontconfig locales libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libnss3 lsb-release xdg-utils wget
-RUN apt-get install -y \
-       libasound2t64 \
+
+RUN apt-get update \
+    && apt-get install -y \
+       wget \
+       unzip \
+       fontconfig \
+       locales \
        libatk1.0-0 \
+       libc6 \
+       libcairo2 \
        libcups2 \
+       libdbus-1-3 \
+       libexpat1 \
+       libfontconfig1 \
+       libgcc1 \
+       libgdk-pixbuf2.0-0 \
+       libglib2.0-0 \
+       libgtk-3-0 \
+       libnspr4 \
+       libpango-1.0-0 \
+       libpangocairo-1.0-0 \
+       libstdc++6 \
+       libx11-6 \
+       libx11-xcb1 \
+       libxcb1 \
+       libxcomposite1 \
+       libxcursor1 \
+       libxdamage1 \
+       libxext6 \
+       libxfixes3 \
+       libxi6 \
+       libxrandr2 \
+       libxrender1 \
+       libxss1 \
+       libxtst6 \
+       ca-certificates \
+       fonts-liberation \
+       libnss3 \
+       lsb-release \
+       xdg-utils \
+       libasound2t64 \
        libdrm2 \
        libgbm1 \
-       libgtk-3-0 \
-       libnss3 \
-       libxcomposite1 \
-       libxdamage1 \
-       libxrandr2 \
-       && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /data/downloads && chmod -R 777 /data/downloads
-RUN mkdir -p /app/appdata && chmod -R 777 /app/appdata
-USER 1000:100
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /data/downloads \
+    && chmod -R 777 /data/downloads \
+    && mkdir -p /app/appdata \
+    && chmod -R 777 /app/appdata
+
 WORKDIR /app
 
 ENV ASPNETCORE_HTTP_PORTS=8484
@@ -43,4 +76,9 @@ RUN dotnet publish "./ProxyMov_DownloadServer.csproj" -c $BUILD_CONFIGURATION -o
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "ProxyMov_DownloadServer.dll"]
+
+RUN printf '#!/bin/sh\numask 0000\nexec dotnet ProxyMov_DownloadServer.dll "$@"\n' > /app/entrypoint.sh \
+    && chmod +x /app/entrypoint.sh
+
+USER 1000:100
+ENTRYPOINT ["/app/entrypoint.sh"]

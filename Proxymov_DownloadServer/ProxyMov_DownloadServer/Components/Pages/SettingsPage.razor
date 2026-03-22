@@ -17,7 +17,7 @@
         </div>
     </div>
     <EditForm Model="@DownloaderPreferences" OnValidSubmit="@(() => SavePreferences())">
-        <DataAnnotationsValidator/>
+        <DataAnnotationsValidator />
         <div class="row mt-3">
             <div class="col-sm-auto">
                 <div class="px-3 py-2">
@@ -27,7 +27,7 @@
                     </div>
                     <label class="text-warning mt-2">@LangText["IntervalInMinutes"]</label>
                     <HxInputNumber InputSize="InputSize.Small" CssClass="mt-2" Decimals="0" TValue="int"
-                                   @bind-Value="DownloaderPreferences.Interval"/>
+                                   @bind-Value="DownloaderPreferences.Interval" />
                 </div>
             </div>
             <div class="col-sm-auto">
@@ -37,7 +37,7 @@
                         <h5 class="d-inline px-2">Start:</h5>
                     </div>
                     <HxCheckbox CssClass="mt-2" TextCssClass="text-warning" Inline="true"
-                                @bind-Value="DownloaderPreferences.AutoStart" Text=@LangText["AutostartDownloads"]/>
+                                @bind-Value="DownloaderPreferences.AutoStart" Text=@LangText["AutostartDownloads"] />
                 </div>
             </div>
             <div class="col-sm-auto">
@@ -48,7 +48,7 @@
                     </div>
                     <HxCheckbox CssClass="mt-2" TextCssClass="text-warning" Inline="true"
                                 @bind-Value="DownloaderPreferences.TelegramCaptchaNotification"
-                                Text=@LangText["TelegramNotifyOnCaptcha"]/>
+                                Text=@LangText["TelegramNotifyOnCaptcha"] />
                 </div>
             </div>
         </div>
@@ -56,7 +56,7 @@
             @if (ProxySettingsChanged)
             {
                 <HxAlert Color="ThemeColor.Info" CssClass="mt-1">
-                    <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill"/>
+                    <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationCircleFill" />
                     Damit die Proxy Einstellungen wirksam werden, bitte die Einstellungen speichern und den Server
                     neustarten!
                 </HxAlert>
@@ -69,25 +69,25 @@
                     </div>
                     <HxCheckbox CssClass="mt-2" TextCssClass="d-inline text-warning" Inline="true"
                                 @oninput="OnProxySettingsChanged" @bind-Value="DownloaderPreferences.UseProxy"
-                                Text=@LangText["UseProxy"]/>
+                                Text=@LangText["UseProxy"] />
                 </div>
             </div>
             <div class="col mt-3">
                 <label class="text-warning my-2">@LangText["ProxyAddress"]</label>
                 <HxInputText Enabled="DownloaderPreferences.UseProxy" Placeholder="p.webshare.io"
                              @oninput="OnProxySettingsChanged" InputSize="InputSize.Small"
-                             @bind-Value="DownloaderPreferences.ProxyUri"/>
+                             @bind-Value="DownloaderPreferences.ProxyUri" />
             </div>
             <div class="col mt-3">
                 <label class="text-warning my-2">@LangText["ProxyUsername"]</label>
                 <HxInputText Enabled="DownloaderPreferences.UseProxy" InputSize="InputSize.Small"
-                             @oninput="OnProxySettingsChanged" @bind-Value="DownloaderPreferences.ProxyUsername"/>
+                             @oninput="OnProxySettingsChanged" @bind-Value="DownloaderPreferences.ProxyUsername" />
             </div>
             <div class="col mt-3">
                 <label class="text-warning my-2">@LangText["ProxyPassword"]</label>
                 <HxInputText Enabled="DownloaderPreferences.UseProxy" Type="InputType.Password"
                              @oninput="OnProxySettingsChanged" InputSize="InputSize.Small"
-                             @bind-Value="DownloaderPreferences.ProxyPassword"/>
+                             @bind-Value="DownloaderPreferences.ProxyPassword" />
             </div>
         </div>
         <div class="row mt-4">
@@ -97,6 +97,20 @@
             </div>
             <div class="col-4 mt-3">
                 <div class="border rounded p-3">
+                    <div class="pb-2">
+                        <h6 class="px-2 pb-3">Bevorzugte Auflösung:</h6>
+                        <HxRadioButtonList TItem="VideoResolution"
+                                           TValue="VideoResolution"
+                                           Data="GetVideoResolutionData()"
+                                           @bind-Value="@SelectedVideoResolution"
+                                           ItemTextSelector="@(r => r.ToVideoResolutionName().ToUpper())"
+                                           ItemValueSelector="@(r => r)"
+                                           CssClass="mt-2"
+                                           ItemCssClass="mt-2"
+                                           ItemTextCssClass="text-warning"
+                                           AutoSort="false" />
+                    </div>
+                    <hr />
                     <h6 class="px-2 pb-3">Dateiformat:</h6>
                     <HxRadioButtonList TItem="FileFormat"
                                        TValue="FileFormat"
@@ -107,7 +121,7 @@
                                        CssClass="mt-2"
                                        ItemCssClass="mt-2"
                                        ItemTextCssClass="text-warning"
-                                       AutoSort="false"/>
+                                       AutoSort="false" />
                 </div>
             </div>
             <div class="col-4 mt-3">
@@ -123,7 +137,7 @@
                                        CssClass="mt-2"
                                        ItemCssClass="mt-2"
                                        ItemTextCssClass="text-warning"
-                                       AutoSort="false"/>
+                                       AutoSort="false" />
                 </div>
             </div>
             <div class="col-4 mt-3">
@@ -139,7 +153,7 @@
                                        CssClass="mt-2"
                                        ItemCssClass="mt-2"
                                        ItemTextCssClass="text-warning"
-                                       AutoSort="false"/>
+                                       AutoSort="false" />
                 </div>
             </div>
         </div>
@@ -166,6 +180,7 @@
     private FileFormat SelectedFileFormat { get; set; }
     private VideoCodec SelectedVideoCodec { get; set; }
     private AudioCodec SelectedAudioCodec { get; set; }
+    private VideoResolution SelectedVideoResolution { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -200,6 +215,7 @@
                 SelectedFileFormat = settings.ConverterSettings.FileFormat;
                 SelectedVideoCodec = settings.ConverterSettings.VideoCodec;
                 SelectedAudioCodec = settings.ConverterSettings.AudioCodec;
+                SelectedVideoResolution = settings.ConverterSettings.PreferredVideoResolution;
             }
 
             StateHasChanged();
@@ -223,9 +239,10 @@
             settings.DownloadPath = DownloadPath;
             settings.ConverterSettings = new ConverterSettingsModel
             {
-                    FileFormat = SelectedFileFormat,
-                    VideoCodec = SelectedVideoCodec,
-                    AudioCodec = SelectedAudioCodec
+                FileFormat = SelectedFileFormat,
+                VideoCodec = SelectedVideoCodec,
+                AudioCodec = SelectedAudioCodec,
+                PreferredVideoResolution = SelectedVideoResolution
             };
 
             SettingsHelper.SaveSettings(settings);
@@ -261,4 +278,14 @@
         return (IEnumerable<T>)Enum.GetValuesAsUnderlyingType(typeof(T));
     }
 
+    private static IEnumerable<VideoResolution> GetVideoResolutionData()
+    {
+        return
+        [
+            VideoResolution.BEST,
+            VideoResolution.P1080,
+            VideoResolution.P720,
+            VideoResolution.P480
+        ];
+    }
 }

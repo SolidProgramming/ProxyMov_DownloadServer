@@ -9,4 +9,6 @@ public class ConverterSettingsModel
     [JsonProperty("VideoCodec")] public VideoCodec VideoCodec { get; set; } = VideoCodec.ORIGINAL;
 
     [JsonProperty("AudioCodec")] public AudioCodec AudioCodec { get; set; } = AudioCodec.ORIGINAL;
+
+    [JsonProperty("PreferredVideoResolution")] public VideoResolution PreferredVideoResolution { get; set; } = VideoResolution.BEST;
 }

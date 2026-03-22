@@ -78,6 +78,14 @@ internal static class Extensions
         { Language.EngSub, "EN (Subbed)" }
     };
 
+    private static readonly Dictionary<VideoResolution, string> VideoResolutionNameCollection = new()
+    {
+        { VideoResolution.BEST, "Beste/Höchste" },
+        { VideoResolution.P1080, "1080p" },
+        { VideoResolution.P720, "720p" },
+        { VideoResolution.P480, "480p" }
+    };
+
     internal static string ToVideoCodec(this VideoCodec vc)
     {
         return VideoCodecsCollection[vc];
@@ -200,5 +208,10 @@ internal static class Extensions
         string result = await httpClient.GetStringAsync("https://api.ipify.org/");
 
         return (!string.IsNullOrEmpty(result), result);
+    }
+
+    internal static string ToVideoResolutionName(this VideoResolution resolution)
+    {
+        return VideoResolutionNameCollection[resolution];
     }
 }

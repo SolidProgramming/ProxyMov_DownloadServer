@@ -522,14 +522,15 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
             string? preferredVideoCodec = NormalizePreferredVideoCodec(converterSettings?.VideoCodec ?? VideoCodec.ORIGINAL);
             string? preferredAudioCodec = NormalizePreferredAudioCodec(converterSettings?.AudioCodec ?? AudioCodec.ORIGINAL);
+            VideoResolution preferredResolution = converterSettings?.PreferredVideoResolution ?? VideoResolution.BEST;
 
             Models.Stream? bestVideo =
                 metadata.Streams
-                    .Where(s => s.CodecType == "video" &&
-                                preferredVideoCodec is not null &&
-                                string.Equals(s.CodecName, preferredVideoCodec, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(s => s.Height ?? 0)
+                    .Where(s => s.CodecType == "video")
+                    .OrderByDescending(s => GetResolutionPriority(s.Height, preferredResolution))
                     .ThenByDescending(s => ParseBitrate(s.Tags?.VariantBitrate) ?? 0)
+                    .ThenByDescending(s => IsPreferredCodec(s.CodecName, preferredVideoCodec))
+                    .ThenByDescending(s => GetVideoCodecScore(s.CodecName))
                     .FirstOrDefault()
             ??
                 metadata.Streams
@@ -629,5 +630,29 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         AbortIsSkip = isSkip;
 
         if (CTS is not null && !CTS.Token.IsCancellationRequested) CTS.Cancel();
+    }
+
+    private static int GetResolutionPriority(int? height, VideoResolution preference)
+    {
+        int h = height ?? 0;
+
+        if (preference == VideoResolution.BEST)
+            return h;
+
+        int target = (int)preference;
+
+        if (h == target)
+            return 1_000_000 + h;
+
+        int distance = Math.Abs(h - target);
+        return 500_000 - distance;
+    }
+
+    private static int IsPreferredCodec(string? streamCodec, string? preferredCodec)
+    {
+        if (string.IsNullOrWhiteSpace(preferredCodec))
+            return 0;
+
+        return string.Equals(streamCodec, preferredCodec, StringComparison.OrdinalIgnoreCase) ? 1 : 0;
     }
 }

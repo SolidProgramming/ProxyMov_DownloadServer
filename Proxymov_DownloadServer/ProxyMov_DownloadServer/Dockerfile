@@ -28,7 +28,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ProxyMov_DownloadServer/ProxyMov_DownloadServer.csproj", "ProxyMov_DownloadServer/"]
-COPY ["ProxyMov_DownloadServer.ServiceDefaults/ProxyMov_DownloadServer.ServiceDefaults.csproj", "ProxyMov_DownloadServer.ServiceDefaults/"]
+#COPY ["ProxyMov_DownloadServer.ServiceDefaults/ProxyMov_DownloadServer.ServiceDefaults.csproj", "ProxyMov_DownloadServer.ServiceDefaults/"]
 RUN dotnet restore "./ProxyMov_DownloadServer/ProxyMov_DownloadServer.csproj"
 COPY . .
 WORKDIR "/src/ProxyMov_DownloadServer"

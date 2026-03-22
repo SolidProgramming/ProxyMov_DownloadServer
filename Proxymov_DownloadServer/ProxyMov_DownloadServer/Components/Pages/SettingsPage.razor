@@ -272,7 +272,7 @@
         if (isContainer && typeof(T) == typeof(VideoCodec))
         {
             return ((IEnumerable<T>)Enum.GetValuesAsUnderlyingType(typeof(T))).Where(_ => !_!.ToString()!.ToVideoCodec().Equals(VideoCodec.H264NVENC) &&
-                                                                                          !_.ToString()!.ToVideoCodec().Equals(VideoCodec.H265));
+                                                                                          !_.ToString()!.ToVideoCodec().Equals(VideoCodec.H265NVENC));
         }
 
         return (IEnumerable<T>)Enum.GetValuesAsUnderlyingType(typeof(T));

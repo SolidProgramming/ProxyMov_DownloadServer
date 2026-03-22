@@ -214,6 +214,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
     private static string GetFileName(EpisodeDownloadModel episode, string downloadPath,
         ConverterSettingsModel? converterSettings, Language language)
     {
+        const string releaseGroup = "ProxyMov";
         string folderPath = "";
         string seriesFolderPath = "";
         string seasonFolderName;
@@ -236,7 +237,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         string fileInfo = $"[{episode.VideoFileInfo.Resolution}][{targetAudioCodec}][{targetVideoCodec}]";
 
         seasonFolderName = $"Season {episode.Download.Season:D2}";
-        episodeFolderName = $"{episode.Download.Name} - S{episode.Download.Season:D2}E{episode.Download.Episode:D2} ({languageName}) {fileInfo}".GetValidFileName();
+        episodeFolderName = $"{episode.Download.Name} - S{episode.Download.Season:D2}E{episode.Download.Episode:D2} ({languageName}) {fileInfo}-{releaseGroup}".GetValidFileName();
 
         if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
         {

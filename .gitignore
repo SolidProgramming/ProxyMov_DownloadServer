@@ -369,3 +369,6 @@ FodyWeavers.xsd
 /ProxyMov_DownloadServer/ProxyMov_DownloadServer/Binaries/ChromeHeadlessShell/*
 /ProxyMov_DownloadServer/ProxyMov_DownloadServer/Binaries/ffmpeg*
 /ProxyMov_DownloadServer/ProxyMov_DownloadServer/Binaries/ffprobe*
+**/appdata/**
+**/Binaries/**
+**/settings.json

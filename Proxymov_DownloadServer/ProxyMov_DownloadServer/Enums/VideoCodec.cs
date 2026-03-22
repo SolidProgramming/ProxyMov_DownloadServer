@@ -8,5 +8,6 @@ public enum VideoCodec
     H264,
     H264NVENC,
     H265,
+    H265NVENC,
     MPEG4
 }

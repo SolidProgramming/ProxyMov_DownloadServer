@@ -350,7 +350,6 @@ internal class CronJob(
 
             if (!string.IsNullOrEmpty(m3u8FromJwPlayer))
             {
-                logger.LogInformation($"{DateTime.Now} | M3U8 aus JW Player API: {m3u8FromJwPlayer}");
                 return m3u8FromJwPlayer;
             }
 

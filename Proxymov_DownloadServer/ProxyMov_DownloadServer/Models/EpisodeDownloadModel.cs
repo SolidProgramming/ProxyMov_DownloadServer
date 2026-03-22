@@ -6,5 +6,5 @@ public class EpisodeDownloadModel
     public DownloadModel Download { get; set; } = null!;
     public StreamingPortalModel StreamingPortal { get; set; } = null!;
     public string? M3U8Url { get; set; }
-    public VideoFileInfo VideoFileInfo { get; set; } = null!;
+    public VideoFileInfoModel VideoFileInfo { get; set; } = null!;
 }

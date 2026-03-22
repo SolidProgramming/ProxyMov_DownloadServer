@@ -24,7 +24,8 @@ internal static class Extensions
     {
         { VideoCodec.H264, "h264" },
         { VideoCodec.H264NVENC, "h264_nvenc" },
-        { VideoCodec.H265, "hevc_nvenc" },
+        { VideoCodec.H265, "libx265" },
+        { VideoCodec.H265NVENC, "hevc_nvenc" },
         { VideoCodec.MPEG4, "mpeg4" },
         { VideoCodec.VP8, "vp8" },
         { VideoCodec.VP9, "vp9" },
@@ -35,7 +36,8 @@ internal static class Extensions
     {
         { VideoCodec.H264, "h264" },
         { VideoCodec.H264NVENC, "h264 nvenc" },
-        { VideoCodec.H265, "h265 nvenc" },
+        { VideoCodec.H265, "h265" },
+        { VideoCodec.H265NVENC, "h265 nvenc" },
         { VideoCodec.MPEG4, "mpeg4" },
         { VideoCodec.VP8, "vp8" },
         { VideoCodec.VP9, "vp9" },

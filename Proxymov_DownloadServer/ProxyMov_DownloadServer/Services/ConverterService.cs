@@ -1,4 +1,5 @@
 ﻿using CliWrap;
+using Newtonsoft.Json;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -56,8 +57,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return true;
     }
 
-    public async Task<CommandResultExt?> StartDownload(EpisodeDownloadModel episode, string downloadPath,
-        DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, Language language)
+    public async Task<CommandResultExt?> StartDownload(EpisodeDownloadModel episode, string downloadPath, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, Language language)
     {
         if (!IsInitialized)
         {
@@ -70,7 +70,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             throw new ArgumentException("M3U8 URL is null or empty.", nameof(episode.M3U8Url));
         }
 
-        VideoFileInfo? videoFileInfo = await GetVideoFileInfo(episode.M3U8Url, downloaderPreferences);
+        VideoFileInfoModel? videoFileInfo = await GetVideoFileInfo(episode.M3U8Url, downloaderPreferences, converterSettings);
 
         if (videoFileInfo == null)
         {
@@ -120,16 +120,30 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
                 $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
         }
 
-        string hwAccell = "-hwaccel cuvid -hwaccel_output_format cuda";
+        string hwAccell = "-hwaccel cuda -hwaccel_output_format cuda";
         bool useHwAccell = false;
 
         if (converterSettings is not null)
         {
-            if (converterSettings.VideoCodec == VideoCodec.H265 || converterSettings.VideoCodec == VideoCodec.H264NVENC)
+            if (converterSettings.VideoCodec == VideoCodec.H264NVENC ||
+                converterSettings.VideoCodec == VideoCodec.H265NVENC)
+            {
                 useHwAccell = true;
+            }
+
+            string mapArgs = "";
+
+            if (episode.VideoFileInfo.VideoStreamIndex.HasValue)
+                mapArgs += $"-map 0:{episode.VideoFileInfo.VideoStreamIndex.Value} ";
+
+            if (episode.VideoFileInfo.AudioStreamIndex.HasValue)
+                mapArgs += $"-map 0:{episode.VideoFileInfo.AudioStreamIndex.Value} ";
+
+            if (string.IsNullOrWhiteSpace(mapArgs))
+                mapArgs = "-map 0:v:0 -map 0:a:0 ";
 
             args =
-                $"-y {(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} {(useHwAccell ? hwAccell : "")} -i \"{episode.M3U8Url}\" -acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
+                $"-y {(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} {(useHwAccell ? hwAccell : "")} -i \"{episode.M3U8Url}\" {mapArgs}-acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
         }
         else
         {
@@ -206,7 +220,20 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         string episodeFolderName;
 
         string? languageName = language.ToLanguageName();
-        string fileInfo = $"[{episode.VideoFileInfo.Resolution}][{episode.VideoFileInfo.AudioCodec}][{episode.VideoFileInfo.VideoCodec}]".ToUpper(); 
+
+        string targetVideoCodec = converterSettings is not null
+            ? (converterSettings.VideoCodec == VideoCodec.ORIGINAL
+                ? (episode.VideoFileInfo.VideoCodec?.ToUpperInvariant() ?? "UNKNOWN")
+                : converterSettings.VideoCodec.ToVideoCodecName().ToUpperInvariant())
+            : (episode.VideoFileInfo.VideoCodec?.ToUpperInvariant() ?? "UNKNOWN");
+
+        string targetAudioCodec = converterSettings is not null
+            ? (converterSettings.AudioCodec == AudioCodec.ORIGINAL
+                ? (episode.VideoFileInfo.AudioCodec?.ToUpperInvariant() ?? "UNKNOWN")
+                : converterSettings.AudioCodec.ToAudioCodecName().ToUpperInvariant())
+            : (episode.VideoFileInfo.AudioCodec?.ToUpperInvariant() ?? "UNKNOWN");
+
+        string fileInfo = $"[{episode.VideoFileInfo.Resolution}][{targetAudioCodec}][{targetVideoCodec}]";
 
         seasonFolderName = $"Season {episode.Download.Season:D2}";
         episodeFolderName = $"{episode.Download.Name} - S{episode.Download.Season:D2}E{episode.Download.Episode:D2} ({languageName}) {fileInfo}".GetValidFileName();
@@ -337,7 +364,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         TimeSpan streamDuration;
 
-        for (int attempt = 1; attempt < MaxGetStreamDurationRetries; attempt++)
+        for (int attempt = 1; attempt <= MaxGetStreamDurationRetries; attempt++)
         {
             streamDuration = await TryGetStreamDuration(ffProbeArgs, attempt);
 
@@ -428,26 +455,24 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return TimeSpan.Parse(output);
     }
 
-    public async Task<VideoFileInfo?> GetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
+    public async Task<VideoFileInfoModel?> GetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings)
     {
-        VideoFileInfo? videoQualityInfo;
+        VideoFileInfoModel? videoQualityInfo;
 
-        for (int attempt = 1; attempt < MaxGetVideoFileInfoRetries; attempt++)
+        for (int attempt = 1; attempt <= MaxGetVideoFileInfoRetries; attempt++)
         {
-            videoQualityInfo = await TryGetVideoFileInfo(streamUrl, downloaderPreferences, attempt);
+            videoQualityInfo = await TryGetVideoFileInfo(streamUrl, downloaderPreferences, converterSettings, attempt);
 
             if (videoQualityInfo is not null)
-            {
                 return videoQualityInfo;
-            }
         }
 
         return null;
     }
 
-    private async Task<VideoFileInfo?> TryGetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, int attemptCount)
+    private async Task<VideoFileInfoModel?> TryGetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, int attemptCount)
     {
-        int waitDuration = attemptCount * 5;
+        int waitDuration = attemptCount * 10;
 
         StringBuilder stdOutBuffer = new();
 
@@ -462,8 +487,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         string arguments = $"{(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} -v error -print_format json -show_streams \"{streamUrl}\"";
 
-        CancellationTokenSource cts = new(TimeSpan.FromSeconds(waitDuration));
-        CancellationToken token = cts.Token;
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(waitDuration));
 
         try
         {
@@ -471,7 +495,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
                 .WithArguments(arguments)
                 .WithValidation(CommandResultValidation.None)
                 .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
-                .ExecuteAsync(token);
+                .ExecuteAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -483,47 +507,60 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             logger.LogError($"{DateTime.Now} | FFPROBE Info: {ex.Message}");
             return null;
         }
-        finally
-        {
-            cts.Dispose();
-        }
 
         string json = stdOutBuffer.ToString();
         stdOutBuffer.Clear();
 
-        if (string.IsNullOrEmpty(json))
+        if (string.IsNullOrWhiteSpace(json))
             return null;
 
         try
         {
-            using JsonDocument doc = JsonDocument.Parse(json);
-            JsonElement streams = doc.RootElement.GetProperty("streams");
+            FFProbeMetadataInfo? metadata = JsonConvert.DeserializeObject<FFProbeMetadataInfo>(json);
+            if (metadata?.Streams is null || metadata.Streams.Count == 0)
+                return null;
 
-            string resolution = "", videoCodec = "", audioCodec = "";
+            string? preferredVideoCodec = NormalizePreferredVideoCodec(converterSettings?.VideoCodec ?? VideoCodec.ORIGINAL);
+            string? preferredAudioCodec = NormalizePreferredAudioCodec(converterSettings?.AudioCodec ?? AudioCodec.ORIGINAL);
 
-            foreach (JsonElement stream in streams.EnumerateArray())
+            Models.Stream? bestVideo =
+                metadata.Streams
+                    .Where(s => s.CodecType == "video" &&
+                                preferredVideoCodec is not null &&
+                                string.Equals(s.CodecName, preferredVideoCodec, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(s => s.Height ?? 0)
+                    .ThenByDescending(s => ParseBitrate(s.Tags?.VariantBitrate) ?? 0)
+                    .FirstOrDefault()
+            ??
+                metadata.Streams
+                    .Where(s => s.CodecType == "video")
+                    .OrderByDescending(s => s.Height ?? 0)
+                    .ThenByDescending(s => ParseBitrate(s.Tags?.VariantBitrate) ?? 0)
+                    .ThenByDescending(s => GetVideoCodecScore(s.CodecName))
+                    .FirstOrDefault();
+
+            Models.Stream? bestAudio =
+                metadata.Streams
+                    .Where(s => s.CodecType == "audio" &&
+                                preferredAudioCodec is not null &&
+                                string.Equals(s.CodecName, preferredAudioCodec, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(s => ParseBitrate(s.Tags?.VariantBitrate) ?? 0)
+                    .FirstOrDefault()
+            ??
+                metadata.Streams
+                    .Where(s => s.CodecType == "audio")
+                    .OrderByDescending(s => ParseBitrate(s.Tags?.VariantBitrate) ?? 0)
+                    .ThenByDescending(s => GetAudioCodecScore(s.CodecName))
+                    .FirstOrDefault();
+
+            return new VideoFileInfoModel
             {
-                if (stream.TryGetProperty("codec_type", out JsonElement codecType))
-                {
-                    string type = codecType.GetString() ?? "";
-
-                    if (type == "video")
-                    {
-                        if (stream.TryGetProperty("height", out JsonElement height))
-                            resolution = $"{height.GetInt32()}p";
-
-                        if (stream.TryGetProperty("codec_name", out JsonElement codec))
-                            videoCodec = codec.GetString();
-                    }
-                    else if (type == "audio")
-                    {
-                        if (stream.TryGetProperty("codec_name", out JsonElement codec))
-                            audioCodec = codec.GetString();
-                    }
-                }
-            }
-
-            return new VideoFileInfo { Resolution = resolution, VideoCodec = videoCodec, AudioCodec = audioCodec };
+                Resolution = bestVideo?.Height is int h ? $"{h}p" : null,
+                VideoCodec = bestVideo?.CodecName,
+                AudioCodec = bestAudio?.CodecName,
+                VideoStreamIndex = bestVideo?.Index,
+                AudioStreamIndex = bestAudio?.Index
+            };
         }
         catch (Exception ex)
         {
@@ -531,6 +568,51 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             return null;
         }
     }
+
+    private static long? ParseBitrate(string? bitrateText)
+    {
+        if (long.TryParse(bitrateText, out long value) && value > 0)
+            return value;
+
+        return null;
+    }
+
+    private static int GetVideoCodecScore(string? codecName) => codecName?.ToLowerInvariant() switch
+    {
+        "hevc" or "h265" => 400,
+        "h264" => 300,
+        "vp9" => 200,
+        "vp8" => 100,
+        _ => 0
+    };
+
+    private static int GetAudioCodecScore(string? codecName) => codecName?.ToLowerInvariant() switch
+    {
+        "ac3" => 300,
+        "aac" => 200,
+        "mp3" => 100,
+        _ => 0
+    };
+
+    private static string? NormalizePreferredVideoCodec(VideoCodec codec) => codec switch
+    {
+        VideoCodec.H264 => "h264",
+        VideoCodec.H264NVENC => "h264",
+        VideoCodec.H265 => "hevc",
+        VideoCodec.H265NVENC => "hevc",
+        VideoCodec.VP8 => "vp8",
+        VideoCodec.VP9 => "vp9",
+        VideoCodec.MPEG4 => "mpeg4",
+        _ => null
+    };
+
+    private static string? NormalizePreferredAudioCodec(AudioCodec codec) => codec switch
+    {
+        AudioCodec.AAC => "aac",
+        AudioCodec.AC3 => "ac3",
+        AudioCodec.MP3 => "mp3",
+        _ => null
+    };
 
     public static DownloadModel? GetDownload()
     {

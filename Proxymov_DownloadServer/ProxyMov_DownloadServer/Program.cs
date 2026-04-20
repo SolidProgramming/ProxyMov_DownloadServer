@@ -116,6 +116,9 @@ if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
     if(!proxyCreated)
     {
         app.Logger.LogError($"{DateTime.Now} | Configured Proxy could not be created.");
+
+        await Task.Delay(10000);
+
         return;
     }
 }
@@ -124,6 +127,9 @@ if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
 if (!success)
 {
     app.Logger.LogError($"{DateTime.Now} | HttpClient could not retrieve WAN IP Address.");
+
+    await Task.Delay(10000);
+
     return;
 }
 
@@ -137,6 +143,9 @@ if (!hosterReachableSTO)
 {
     app.Logger.LogError(
         $"{DateTime.Now} | Hoster: {sto.Host} not reachable. Maybe there is a captcha you need to solve.");
+
+    await Task.Delay(10000);
+
     return;
 }
 
@@ -146,6 +155,9 @@ if (!hosterReachableAniworld)
 {
     app.Logger.LogError(
         $"{DateTime.Now} | Hoster: {aniworld.Host} not reachable. Maybe there is a captcha you need to solve.");
+
+    await Task.Delay(10000);
+
     return;
 }
 

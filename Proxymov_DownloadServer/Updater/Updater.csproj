@@ -12,8 +12,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.23.1" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.5" />
+        <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.24.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.6" />
     </ItemGroup>
 
 </Project>

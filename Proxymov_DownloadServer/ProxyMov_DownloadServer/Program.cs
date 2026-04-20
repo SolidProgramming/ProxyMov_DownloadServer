@@ -106,12 +106,18 @@ if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
 {
     app.Logger.LogInformation($"{DateTime.Now} | Proxy configured: {downloaderPreferences.ProxyUri}");
 
-    proxy = ProxyFactory.CreateProxy(new ProxyAccountModel
+    bool proxyCreated = ProxyFactory.CreateProxy(new ProxyAccountModel
     {
         Uri = downloaderPreferences.ProxyUri,
         Username = downloaderPreferences.ProxyUsername,
         Password = downloaderPreferences.ProxyPassword
-    });
+    }, out proxy);
+
+    if(!proxyCreated)
+    {
+        app.Logger.LogError($"{DateTime.Now} | Configured Proxy could not be created.");
+        return;
+    }
 }
 
 (bool success, string? ipv4) = await new HttpClient().GetIPv4();

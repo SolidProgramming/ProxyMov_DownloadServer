@@ -1,19 +1,33 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 
 namespace ProxyMov_DownloadServer.Factories;
 
 public static class ProxyFactory
 {
-    public static WebProxy? CreateProxy(ProxyAccountModel proxyAccount)
+    public static bool CreateProxy(ProxyAccountModel proxyAccount, out WebProxy? proxy)
     {
-        if (string.IsNullOrEmpty(proxyAccount.Uri)) return null;
+        proxy = null;
 
-        return new WebProxy
+        if (string.IsNullOrEmpty(proxyAccount.Uri)) return false;
+
+        try
         {
-            Address = new Uri(proxyAccount.Uri),
-            BypassProxyOnLocal = true,
-            UseDefaultCredentials = false,
-            Credentials = new NetworkCredential(proxyAccount.Username, proxyAccount.Password)
-        };
+            proxy = new()
+            {
+                Address = new Uri(proxyAccount.Uri),
+                BypassProxyOnLocal = true,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(proxyAccount.Username, proxyAccount.Password)
+            };
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+
+            return false;
+        }
     }
 }

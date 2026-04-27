@@ -2,7 +2,7 @@
 
 public class HosterModel
 {
-    public HosterModel(string host, Hoster hoster, string browserUrl)
+    public HosterModel(string host, StreamingPortal hoster, string browserUrl)
     {
         Host = host;
         Hoster = hoster;
@@ -10,6 +10,6 @@ public class HosterModel
     }
 
     public string Host { get; set; }
-    public Hoster Hoster { get; set; }
+    public StreamingPortal Hoster { get; set; }
     public string BrowserUrl { get; set; }
 }

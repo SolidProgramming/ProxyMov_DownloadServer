@@ -31,7 +31,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory) : IQuartzService
                 .WithIdentity(JobKey)
                 .Build();
 
-            DateTimeOffset startTime = new DateTimeOffset(DateTime.Now.ToLocalTime())
+            DateTimeOffset startTime = new DateTimeOffset(DateTime.UtcNow.ToLocalTime())
                 .AddSeconds(10);
 
             Trigger = TriggerBuilder.Create()

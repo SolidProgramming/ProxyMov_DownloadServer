@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using HtmlAgilityPack;
@@ -12,8 +12,8 @@ internal class CronJob(
     IApiService apiService,
     IConverterService converterService,
     IHostApplicationLifetime appLifetime,
-    IQuartzService quartzService)
-    : IJob
+    IQuartzService quartzService,
+    IStreamingPortalServiceFactory streamingPortalServiceFactory) : IJob
 {
     public delegate void CronJobDownloadsEventHandler(int downloadCount, int languageDownloadCount);
 
@@ -28,8 +28,6 @@ internal class CronJob(
 
     public static int Interval;
     public static DateTime? NextRun;
-
-    private static HttpClient? HttpClient;
 
     private IBrowser? Browser;
     public static CronJobState CronJobState { get; set; } = CronJobState.WaitForNextCycle;
@@ -56,29 +54,10 @@ internal class CronJob(
     public static event CronJobErrorEventHandler? CronJobErrorEvent;
     public static event CronJobDownloadsEventHandler? CronJobDownloadsEvent;
 
-    public static async Task<bool> InitAsync(WebProxy? proxy = null)
-    {
-        if (proxy is null)
-            HttpClient = HttpClientFactory.CreateHttpClient<CronJob>();
-        else
-            HttpClient = HttpClientFactory.CreateHttpClient<CronJob>(proxy);
-
-        using HttpClient noProxyHttpClient = HttpClientFactory.CreateHttpClient();
-
-        (bool success, string? ipv4) = await HttpClient.GetIPv4();
-        (bool noProxySuccess, string? NoProxyIpv4) = await noProxyHttpClient.GetIPv4();
-
-        if (!success || !noProxySuccess) return false;
-
-        if (ipv4 == NoProxyIpv4) return false;
-
-        return true;
-    }
-
     private void SetCronJobState(CronJobState jobState)
     {
         CronJobState = jobState;
-        logger.LogInformation($"{DateTime.Now} | {InfoMessage.CronJobChangedState} {jobState}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.CronJobChangedState} {jobState}");
 
         CronJobEvent?.Invoke(jobState);
     }
@@ -93,23 +72,15 @@ internal class CronJob(
 
     public async Task CheckForNewDownloads()
     {
-        logger.LogInformation($"{DateTime.Now} | {CronJobState}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {CronJobState}");
 
         if (CronJobState != CronJobState.WaitForNextCycle) return;
-
-        if (HttpClient is null)
-        {
-            string errorMessage = $"{DateTime.Now} | Http Client: {nameof(HttpClient)} is not initialized!";
-            logger.LogError(errorMessage);
-            CronJobErrorEvent?.Invoke(MessageType.Error, errorMessage);
-            return;
-        }
 
         SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
         if (settings is null || string.IsNullOrEmpty(settings.DownloadPath) || string.IsNullOrEmpty(settings.ApiUrl))
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettings}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettings}");
             CronJobErrorEvent?.Invoke(MessageType.Error, ErrorMessage.ReadSettings);
             return;
         }
@@ -160,28 +131,21 @@ internal class CronJob(
 
             string? originalEpisodeName = episode.Download.Name;
 
-            string url = "";
-
-            if (episode.StreamingPortal.Name == Hoster.STO.ToString())
-                url =
-                    $"https://s.to/serie/stream{episode.Download.Path}/{string.Format(Globals.LinkBlueprint, episode.Download.Season, episode.Download.Episode)}";
-            else if (episode.StreamingPortal.Name == Hoster.AniWorld.ToString())
-                url =
-                    $"https://aniworld.to/anime/stream{episode.Download.Path}/{string.Format(Globals.LinkBlueprint, episode.Download.Season, episode.Download.Episode)}";
-            else
+            if (!Enum.TryParse(episode.StreamingPortal.Name, true, out StreamingPortal streamingPortal))
                 continue;
 
-            string? html;
+            List<DirectViewLinkModel>? directViewLinks;
             bool hasError = false;
 
             try
             {
-                html = await HttpClient.GetStringAsync(url);
+                IStreamingPortalService streamingPortalService = streamingPortalServiceFactory.GetService(streamingPortal);
+                directViewLinks = await streamingPortalService.GetDirectViewLinksAsync(episode);
             }
             catch (HttpRequestException ex)
             {
                 CronJobErrorEvent?.Invoke(MessageType.Error, ex.Message);
-                logger.LogError($"{DateTime.Now} | {ex.Message}");
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ex.Message}");
 
                 hasError = true;
                 continue;
@@ -189,7 +153,7 @@ internal class CronJob(
             catch (Exception ex)
             {
                 CronJobErrorEvent?.Invoke(MessageType.Error, ex.Message);
-                logger.LogError($"{DateTime.Now} | {ex.Message}");
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ex.Message}");
 
                 hasError = true;
                 continue;
@@ -199,31 +163,20 @@ internal class CronJob(
                 if (hasError) CronJobErrorEvent?.Invoke(MessageType.Warning, WarningMessage.DownloadNotRemoved);
             }
 
-            Dictionary<Language, List<string>>? languageRedirectLinks = HosterHelper.GetLanguageRedirectLinks(html);
-
-            if (languageRedirectLinks == null || languageRedirectLinks.Count == 0) continue;
+            if (directViewLinks == null || directViewLinks.Count == 0) continue;
 
             IEnumerable<Language> episodeLanguages =
                 episode.Download.LanguageFlag.GetFlags<Language>(Language.None);
-            IEnumerable<Language> redirectLanguages =
-                languageRedirectLinks.Keys.Where(lang => episodeLanguages.Contains(lang));
 
-            IEnumerable<Language> downloadLanguages = episodeLanguages.Intersect(redirectLanguages);
+            List<DirectViewLinkModel> selectedDirectViewLinks = [.. directViewLinks.Where(_ => episodeLanguages.Contains(_.Language))];
 
             int finishedDownloadsCount = 1;
 
-            foreach (Language language in downloadLanguages)
+            foreach (DirectViewLinkModel directViewLink in selectedDirectViewLinks)
             {
-                SetCronJobDownloads(DownloadQue.Count, downloadLanguages.Count() - finishedDownloadsCount);
+                SetCronJobDownloads(DownloadQue.Count, selectedDirectViewLinks.Count - finishedDownloadsCount);
 
-                if (episode.StreamingPortal.Name == Hoster.STO.ToString())
-                    url = $"https://s.to{languageRedirectLinks[language][0]}";
-                else if (episode.StreamingPortal.Name == Hoster.AniWorld.ToString())
-                    url = $"https://aniworld.to{languageRedirectLinks[language][0]}";
-                else
-                    continue;
-
-                episode.M3U8Url = await GetEpisodeM3U8(url, downloaderPreferences);
+                episode.M3U8Url = await GetEpisodeM3U8(directViewLink.DirectLink, downloaderPreferences);
 
                 if (string.IsNullOrEmpty(episode.M3U8Url))
                 {
@@ -233,11 +186,16 @@ internal class CronJob(
                     continue;
                 }
 
-                logger.LogInformation($"{DateTime.Now} | Stream Url: {episode.M3U8Url}");
+                logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Stream Url: {episode.M3U8Url}");
 
                 episode.Download.Name = originalEpisodeName;
 
-                CommandResultExt? result = await converterService.StartDownload(episode, settings.DownloadPath, downloaderPreferences, settings.ConverterSettings, language);
+                CommandResultExt? result = await converterService.StartDownload(
+                    episode,
+                    settings.DownloadPath,
+                    downloaderPreferences,
+                    settings.ConverterSettings,
+                    directViewLink.Language);
 
                 finishedDownloadsCount++;
 
@@ -274,7 +232,7 @@ internal class CronJob(
                 {
                     CronJobErrorEvent?.Invoke(MessageType.Success, InfoMessage.DownloadFinished);
 
-                    if (finishedDownloadsCount >= downloadLanguages.Count())
+                    if (finishedDownloadsCount >= selectedDirectViewLinks.Count)
                     {
                         await RemoveDownload(episode);
                     }
@@ -334,7 +292,7 @@ internal class CronJob(
 
         string proxyLogText = $"| Url: {downloaderPreferences.ProxyUri}@{downloaderPreferences.ProxyUsername}";
         logger.LogInformation(
-            $"{DateTime.Now} | Use Proxy: {downloaderPreferences.UseProxy} {(downloaderPreferences.UseProxy ? proxyLogText : "")}");
+            $"{DateTime.UtcNow.ToLocalTime()} | Use Proxy: {downloaderPreferences.UseProxy} {(downloaderPreferences.UseProxy ? proxyLogText : "")}");
 
         using IPage? page = await Browser.NewPageAsync();
 
@@ -413,7 +371,7 @@ internal class CronJob(
 
     private async Task<string?> GetVideoPageHtml(IPage page, string streamUrl)
     {
-        logger.LogInformation($"{DateTime.Now} | Navigation to Page {streamUrl}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Navigation to Page {streamUrl}");
 
         await page.GoToAsync(streamUrl, new NavigationOptions
         {
@@ -441,7 +399,6 @@ internal class CronJob(
                     }
                 }");
 
-            //Execute player start and wait for stream to initialize
             await Task.Delay(2000);
 
             string? m3u8Url = await page.EvaluateFunctionAsync<string?>(@"() => {

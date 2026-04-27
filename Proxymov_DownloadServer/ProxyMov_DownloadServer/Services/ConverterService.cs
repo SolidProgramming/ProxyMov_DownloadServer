@@ -2,7 +2,6 @@
 using Newtonsoft.Json;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace ProxyMov_DownloadServer.Services;
@@ -10,18 +9,18 @@ namespace ProxyMov_DownloadServer.Services;
 public class ConverterService(ILogger<ConverterService> logger, IHostApplicationLifetime appLifetime)
     : IConverterService
 {
-    public delegate void ConverterStateChangedEvent(ConverterState state, DownloadModel? download = null);
+    public delegate void ConverterStateChangedEvent(ConverterState state, EpisodeDownloadModel? episode = null);
 
     public delegate void ConvertProgressChangedEvent(ConvertProgressModel convertProgress);
 
-    public delegate void ConvertStartedEvent(DownloadModel download);
+    public delegate void ConvertStartedEvent(EpisodeDownloadModel episode);
 
     private const int MaxGetStreamDurationRetries = 3;
     private const int MaxGetVideoFileInfoRetries = 2;
 
     private static long PreviousDownloadSize;
-    private static DateTime? FFMPEGStartTime;
-    private static DownloadModel? Download { get; set; }
+    private static DateTime? FFMPEGStartTime;    
+    private static EpisodeDownloadModel? Episode {  get; set; }
     private static ConverterState ConverterState { get; set; } = ConverterState.Undefined;
 
     private bool IsInitialized { get; set; }
@@ -37,13 +36,13 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         {
             if (!File.Exists(Helper.GetFFMPEGPath()))
             {
-                logger.LogError($"{DateTime.Now} | {ErrorMessage.FFMPEGBinarieNotFound}");
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.FFMPEGBinarieNotFound}");
                 return false;
             }
 
             if (!File.Exists(Helper.GetFFProbePath()))
             {
-                logger.LogError($"{DateTime.Now} | {ErrorMessage.FFProbeBinariesNotFound}");
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.FFProbeBinariesNotFound}");
                 return false;
             }
         }
@@ -52,7 +51,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         IsInitialized = true;
 
-        logger.LogInformation($"{DateTime.Now} | {InfoMessage.ConverterServiceInit}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.ConverterServiceInit}");
 
         return true;
     }
@@ -61,20 +60,20 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
     {
         if (!IsInitialized)
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.ConverterServiceNotInitialized}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ConverterServiceNotInitialized}");
             return null;
         }
 
         if (string.IsNullOrWhiteSpace(episode.M3U8Url))
         {
-            throw new ArgumentException("M3U8 URL is null or empty.", nameof(episode.M3U8Url));
+            ArgumentException.ThrowIfNullOrEmpty(episode.M3U8Url, nameof(episode.M3U8Url));
         }
 
         VideoFileInfoModel? videoFileInfo = await GetVideoFileInfo(episode.M3U8Url, downloaderPreferences, converterSettings);
 
         if (videoFileInfo == null)
         {
-            logger.LogError($"{DateTime.Now} | No stream duration found!");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | No stream duration found!");
             return null;
         }
 
@@ -86,7 +85,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         if (streamDuration == TimeSpan.Zero)
         {
-            logger.LogError($"{DateTime.Now} | No stream duration found!");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | No stream duration found!");
             return null;
         }
 
@@ -100,15 +99,15 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             if (durationExistingFile.Minutes == streamDuration.Minutes &&
                 durationExistingFile.Seconds == streamDuration.Seconds)
             {
-                logger.LogInformation($"{DateTime.Now} | {InfoMessage.EpisodeDownloadSkippedFileExists}");
+                logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.EpisodeDownloadSkippedFileExists}");
 
                 return new CommandResultExt(skippedNoResult: true);
             }
         }
 
-        Download = episode.Download;
+        Episode = episode;
 
-        ConverterStateChanged?.Invoke(ConverterState.Downloading, episode.Download);
+        ConverterStateChanged?.Invoke(ConverterState.Downloading, episode);
 
         string args = "";
         string proxyAuthArgs = "";
@@ -147,14 +146,14 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         else
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettings}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettings}");
         }
 
         string binPath = Helper.GetFFMPEGPath();
 
-        ConvertStarted?.Invoke(episode.Download);
+        ConvertStarted?.Invoke(episode);
 
-        Download.DownloadStartTime = DateTime.Now;
+        Episode.Download.DownloadStartTime = DateTime.UtcNow.ToLocalTime();
 
         CTS = new CancellationTokenSource();
 
@@ -177,17 +176,17 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             if (AbortIsSkip)
                 return new CommandResultExt(skipped: true);
             else
-                logger.LogWarning($"{DateTime.Now} | {WarningMessage.DownloadCanceled}");
+                logger.LogWarning($"{DateTime.UtcNow.ToLocalTime()} | {WarningMessage.DownloadCanceled}");
         }
         catch (Exception ex)
         {
             if (File.Exists(filePath)) File.Delete(filePath);
 
-            logger.LogError($"{DateTime.Now} |FFMPEG: {ex}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} |FFMPEG: {ex}");
         }
         finally
         {
-            Download = null;
+            Episode = null;
             FFMPEGStartTime = null;
             PreviousDownloadSize = 0;
             ConverterStateChanged?.Invoke(ConverterState.Idle);
@@ -200,15 +199,15 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
     public static event ConvertProgressChangedEvent? ConvertProgressChanged;
     public static event ConvertStartedEvent? ConvertStarted;
 
-    private void ConverterService_ConverterStateChanged(ConverterState state, DownloadModel? download = null)
+    private void ConverterService_ConverterStateChanged(ConverterState state, EpisodeDownloadModel? episode = null)
     {
         ConverterState = state;
 
-        if (state == ConverterState.Downloading && download is not null)
+        if (state == ConverterState.Downloading && episode is not null && episode.Download is not null)
             logger.LogInformation(
-                $"{DateTime.Now} | Downloading: {download.Name}_S{download.Season:D2}E{download.Episode:D2}");
+                $"{DateTime.UtcNow.ToLocalTime()} | Downloading: {episode.Download.Name}_S{episode.Download.Season:D2}E{episode.Download.Episode:D2}");
         else
-            logger.LogInformation($"{DateTime.Now} | {InfoMessage.ConverterChangedState} {state}");
+            logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.ConverterChangedState} {state}");
     }
 
     private static string GetFileName(EpisodeDownloadModel episode, string downloadPath,
@@ -270,7 +269,10 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
     private static void ReadOutput(string output)
     {
-        if (!FFMPEGStartTime.HasValue) FFMPEGStartTime = DateTime.Now;
+        if (Episode is null)
+            return;
+
+        if (!FFMPEGStartTime.HasValue) FFMPEGStartTime = DateTime.UtcNow.ToLocalTime();
 
         if (!Regex.IsMatch(output, "time=([\\d:]+)")) return;
 
@@ -303,11 +305,11 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
             if (bytesDownloaded > 0)
             {
-                progress.KBytePerSecond = bytesDownloaded / 1024 / (DateTime.Now - FFMPEGStartTime).Value.TotalSeconds;
+                progress.KBytePerSecond = bytesDownloaded / 1024 / (DateTime.UtcNow.ToLocalTime() - FFMPEGStartTime).Value.TotalSeconds;
                 PreviousDownloadSize = progress.Size;
             }
 
-            double progressPercent = 100.0d * (progress.Time.TotalSeconds / Download!.StreamDuration.TotalSeconds);
+            double progressPercent = 100.0d * (progress.Time.TotalSeconds / Episode.Download.StreamDuration.TotalSeconds);
 
             if (progressPercent <= 0.0) return;
 
@@ -327,7 +329,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             string fpsText = fpsMatch.Groups[1].Value;
             progress.FPS = float.Parse(fpsText);
 
-            progress.ETA = EstimateCompletionTime(progress.ProgressPercent, Download.DownloadStartTime);
+            progress.ETA = EstimateCompletionTime(progress.ProgressPercent, Episode.Download.DownloadStartTime);
 
             ConvertProgressChanged?.Invoke(progress);
         }
@@ -338,7 +340,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
     private static TimeSpan EstimateCompletionTime(double completedPercentage, DateTime downloadStartTime)
     {
-        TimeSpan elapsedTime = DateTime.Now.Subtract(downloadStartTime);
+        TimeSpan elapsedTime = DateTime.UtcNow.ToLocalTime().Subtract(downloadStartTime);
 
         double remainingPercentage = 100 - completedPercentage;
         double estimatedTotalTime = elapsedTime.TotalSeconds / completedPercentage * 100;
@@ -350,18 +352,16 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
     private async Task<TimeSpan> GetStreamDuration(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
     {
-        string ffProbeArgs = "";
         string proxyAuthArgs = "";
 
         if (downloaderPreferences.UseProxy && !string.IsNullOrWhiteSpace(downloaderPreferences.ProxyUri))
         {
             string proxyUri = downloaderPreferences.ProxyUri.Replace("http://", "").Replace("https://", "");
-            proxyAuthArgs =
-                $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
+
+            proxyAuthArgs = $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
         }
 
-        ffProbeArgs =
-            $"{(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 -sexagesimal \"{streamUrl}\"";
+        string ffProbeArgs = $"{(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 -sexagesimal \"{streamUrl}\"";
 
         TimeSpan streamDuration;
 
@@ -399,12 +399,12 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         catch (OperationCanceledException)
         {
             logger.LogWarning(
-                $"{DateTime.Now} | Failed to get stream duration! Retries left: {MaxGetStreamDurationRetries - attemptCount}");
+                $"{DateTime.UtcNow.ToLocalTime()} | Failed to get stream duration! Retries left: {MaxGetStreamDurationRetries - attemptCount}");
             return TimeSpan.Zero;
         }
         catch (Exception ex)
         {
-            logger.LogError($"{DateTime.Now} |FFPROBE: {ex}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} |FFPROBE: {ex}");
             return TimeSpan.Zero;
         }
 
@@ -500,12 +500,12 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         catch (OperationCanceledException)
         {
-            logger.LogWarning($"{DateTime.Now} | Failed to get stream/video quality info! Retries left: {MaxGetVideoFileInfoRetries - attemptCount}");
+            logger.LogWarning($"{DateTime.UtcNow.ToLocalTime()} | Failed to get stream/video quality info! Retries left: {MaxGetVideoFileInfoRetries - attemptCount}");
             return null;
         }
         catch (Exception ex)
         {
-            logger.LogError($"{DateTime.Now} | FFPROBE Info: {ex.Message}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | FFPROBE Info: {ex.Message}");
             return null;
         }
 
@@ -566,7 +566,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         catch (Exception ex)
         {
-            logger.LogError($"{DateTime.Now} | Failed to parse video quality info: {ex.Message}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | Failed to parse video quality info: {ex.Message}");
             return null;
         }
     }
@@ -616,9 +616,9 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         _ => null
     };
 
-    public static DownloadModel? GetDownload()
+    public static EpisodeDownloadModel? GetDownloadEpisode()
     {
-        return Download;
+        return Episode;
     }
 
     public static ConverterState GetConverterState()

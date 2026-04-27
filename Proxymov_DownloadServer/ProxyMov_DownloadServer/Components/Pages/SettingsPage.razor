@@ -6,6 +6,7 @@
 @inject NavigationManager NavigationManager
 @inject IHxMessengerService ToastService
 @inject I18nText I18nText
+@inject IQuartzService QuartzService
 
 <PageTitle>@LangText["Settings"]</PageTitle>
 
@@ -226,7 +227,7 @@
     {
         bool success = DownloaderPreferences != null && await ApiService.SetDownloaderPreferences(DownloaderPreferences);
 
-        if (!success)
+        if (!success || DownloaderPreferences is null)
         {
             ToastService.AddMessage(ErrorMessage.DownloaderPreferencesSaveFail, MessageType.Error);
             return;
@@ -247,6 +248,8 @@
 
             SettingsHelper.SaveSettings(settings);
         }
+
+        await QuartzService.CreateJob(DownloaderPreferences.Interval);
 
         ToastService.AddMessage(InfoMessage.DownloaderPreferencesSaved, MessageType.Success);
 

@@ -17,19 +17,19 @@ public class ApiService(ILogger<ApiService> logger, HttpClient httpClient)
 
         if (settings is null)
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettings}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettings}");
             return false;
         }
 
         if (!Uri.TryCreate(settings.ApiUrl, UriKind.Absolute, out Uri? apiUri))
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettingsApiUrl}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettingsApiUrl}");
             return false;
         }
 
         if (string.IsNullOrEmpty(settings.ApiKey))
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.ReadSettingsApiKey}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettingsApiKey}");
             return false;
         }
 
@@ -39,7 +39,7 @@ public class ApiService(ILogger<ApiService> logger, HttpClient httpClient)
 
         IsInitialized = true;
 
-        logger.LogInformation($"{DateTime.Now} | {InfoMessage.ApiServiceInit}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.ApiServiceInit}");
 
         return true;
     }
@@ -105,7 +105,7 @@ public class ApiService(ILogger<ApiService> logger, HttpClient httpClient)
     {
         if (!IsInitialized)
         {
-            logger.LogError($"{DateTime.Now} | {ErrorMessage.APIServiceNotInitialized}");
+            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.APIServiceNotInitialized}");
             return default;
         }
 

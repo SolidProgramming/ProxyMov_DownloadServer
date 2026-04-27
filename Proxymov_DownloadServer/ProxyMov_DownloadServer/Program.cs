@@ -10,7 +10,6 @@ using System.Net;
 using System.Runtime.InteropServices;
 using Havit.Blazor.Components.Web;
 using ProxyMov_DownloadServer.Components;
-using ProxyMov_DownloadServer.Misc;
 using ProxyMov_DownloadServer.ServiceDefaults;
 using PuppeteerSharp;
 using Quartz;
@@ -29,7 +28,6 @@ if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
 
 builder.AddServiceDefaults();
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -51,13 +49,36 @@ builder.Services.AddQuartzHostedService(_ =>
 });
 
 builder.Services.AddI18nText(_ => { _.PersistenceLevel = PersistanceLevel.PersistentCookie; });
+builder.Services.ConfigureHttpClientDefaults(httpClientBuilder =>
+{
+    httpClientBuilder.ConfigureHttpClient(client =>
+    {
+        client.Timeout = Timeout.InfiniteTimeSpan;
+    });
+
+    httpClientBuilder.AddResilienceHandler("default", (pipeline, context) =>
+    {
+        ILoggerFactory loggerFactory = context.ServiceProvider.GetRequiredService<ILoggerFactory>();
+        HttpResiliencePipelineConfigurator.Configure(pipeline, loggerFactory, context.BuilderName);
+    });
+});
 
 builder.Services.AddHttpClient<IApiService, ApiService>();
 
 builder.Services.AddSingleton<IApiService, ApiService>();
 builder.Services.AddSingleton<IConverterService, ConverterService>();
+builder.Services.AddSingleton<ProxyMov_DownloadServer.Interfaces.IHttpClientFactory, HttpClientFactory>();
 builder.Services.AddSingleton<IQuartzService, QuartzService>();
 builder.Services.AddSingleton<IUpdateService, UpdateService>();
+builder.Services.AddTransient<CronJob>();
+builder.Services.AddSingleton<IStreamingPortalServiceFactory>(_ =>
+{
+    StreamingPortalServiceFactory streamingPortalServiceFactory = new();
+    streamingPortalServiceFactory.AddService(StreamingPortal.AniWorld, _);
+    streamingPortalServiceFactory.AddService(StreamingPortal.STO, _);
+
+    return streamingPortalServiceFactory;
+});
 
 WebApplication app = builder.Build();
 
@@ -65,11 +86,11 @@ SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
 if (settings is null || string.IsNullOrEmpty(settings.ApiUrl))
 {
-    app.Logger.LogError($"{DateTime.Now} | Could not find Settings.json file or settings not complete.");
+    app.Logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | Could not find Settings.json file or settings not complete.");
     return;
 }
 
-app.Logger.LogInformation($"{DateTime.Now} | Downloading and installing chrome to: {Helper.GetBrowserPath()}");
+app.Logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Downloading and installing chrome to: {Helper.GetBrowserPath()}");
 
 BrowserFetcherOptions browserFetcherOptions =
     new() { Path = Helper.GetBrowserPath(), Browser = SupportedBrowser.Chrome };
@@ -81,7 +102,7 @@ bool converterInitSuccess = converterService.Init();
 
 if (!converterInitSuccess)
 {
-    app.Logger.LogError($"{DateTime.Now} | Converter couldn't be initialized!");
+    app.Logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | Converter couldn't be initialized!");
     return;
 }
 
@@ -90,12 +111,12 @@ bool apiInitSuccess = apiService.Init();
 
 if (!apiInitSuccess)
 {
-    app.Logger.LogError($"{DateTime.Now} | API service couldn't be initialized!");
+    app.Logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | API service couldn't be initialized!");
     return;
 }
 
-HosterModel? sto = HosterHelper.GetHosterByEnum(Hoster.STO);
-HosterModel? aniworld = HosterHelper.GetHosterByEnum(Hoster.AniWorld);
+ProxyMov_DownloadServer.Interfaces.IHttpClientFactory httpClientFactory = app.Services.GetRequiredService<ProxyMov_DownloadServer.Interfaces.IHttpClientFactory>();
+IStreamingPortalServiceFactory streamingPortalServiceFactory = app.Services.GetRequiredService<IStreamingPortalServiceFactory>();
 
 DownloaderPreferencesModel? downloaderPreferences =
     await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences");
@@ -104,7 +125,7 @@ WebProxy? proxy = null;
 
 if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
 {
-    app.Logger.LogInformation($"{DateTime.Now} | Proxy configured: {downloaderPreferences.ProxyUri}");
+    app.Logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Proxy configured: {downloaderPreferences.ProxyUri}");
 
     bool proxyCreated = ProxyFactory.CreateProxy(new ProxyAccountModel
     {
@@ -113,9 +134,9 @@ if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
         Password = downloaderPreferences.ProxyPassword
     }, out proxy);
 
-    if(!proxyCreated)
+    if (!proxyCreated)
     {
-        app.Logger.LogError($"{DateTime.Now} | Configured Proxy could not be created.");
+        app.Logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | Configured Proxy could not be created.");
 
         await Task.Delay(10000);
 
@@ -126,43 +147,28 @@ if (downloaderPreferences is not null && downloaderPreferences.UseProxy)
 (bool success, string? ipv4) = await new HttpClient().GetIPv4();
 if (!success)
 {
-    app.Logger.LogError($"{DateTime.Now} | HttpClient could not retrieve WAN IP Address.");
+    app.Logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | HttpClient could not retrieve WAN IP Address.");
 
     await Task.Delay(10000);
 
     return;
 }
 
-app.Logger.LogInformation($"{DateTime.Now} | Your WAN IP is: {ipv4}");
+app.Logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Your WAN IP is: {ipv4}");
 
-app.Logger.LogInformation($"{DateTime.Now} | Checking if Hosters are reachable...");
+app.Logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Initializing Cronjob and HttpClients...");
 
-bool hosterReachableSTO = await HosterHelper.HosterReachable(sto, proxy);
+IStreamingPortalService stoService = streamingPortalServiceFactory.GetService(StreamingPortal.STO);
+IStreamingPortalService aniWorldService = streamingPortalServiceFactory.GetService(StreamingPortal.AniWorld);
 
-if (!hosterReachableSTO)
+bool stoInitialized = await stoService.InitAsync(proxy);
+bool aniWorldInitialized = await aniWorldService.InitAsync(proxy);
+
+if (!stoInitialized || !aniWorldInitialized)
 {
-    app.Logger.LogError(
-        $"{DateTime.Now} | Hoster: {sto.Host} not reachable. Maybe there is a captcha you need to solve.");
-
-    await Task.Delay(10000);
-
+    app.Logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | Streaming portal services couldn't be initialized!");
     return;
 }
-
-bool hosterReachableAniworld = await HosterHelper.HosterReachable(aniworld, proxy);
-
-if (!hosterReachableAniworld)
-{
-    app.Logger.LogError(
-        $"{DateTime.Now} | Hoster: {aniworld.Host} not reachable. Maybe there is a captcha you need to solve.");
-
-    await Task.Delay(10000);
-
-    return;
-}
-
-app.Logger.LogInformation($"{DateTime.Now} | Initializing Cronjob and HttpClients...");
-await CronJob.InitAsync(proxy);
 
 IQuartzService quartz = app.Services.GetRequiredService<IQuartzService>();
 await quartz.Init();
@@ -171,17 +177,13 @@ if (downloaderPreferences is null)
 {
     await quartz.CreateJob(15);
 }
-else
+else if (downloaderPreferences.AutoStart)
 {
-    if (downloaderPreferences.AutoStart)
-    {
-        await quartz.CreateJob(downloaderPreferences.Interval);
-    }
+    await quartz.CreateJob(downloaderPreferences.Interval);
 }
 
 app.MapDefaultEndpoints();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");

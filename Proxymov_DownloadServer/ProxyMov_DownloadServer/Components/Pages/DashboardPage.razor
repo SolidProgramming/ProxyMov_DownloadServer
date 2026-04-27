@@ -106,7 +106,29 @@
                         <td class="text-center align-middle" width="500" style="font-family: 'Roboto', sans-serif;">
                             @if (DownloadEpisode is not null)
                             {
-                                @DownloadEpisode.Download.Name
+                                <div class="row my-2">
+                                    <span class="align-middle fw-semibold">@DownloadEpisode.Download.Name</span>
+                                </div>
+                                <div class="d-flex justify-content-center">
+                                    <HxBadge CssClass="mx-1 py-2 px-3" Type="BadgeType.Regular" Color="GetDownloadResolutionIconColor(DownloadEpisode.VideoFileInfo)">
+                                        <h5 class="d-inline align-middle fw-semibold">
+                                            <HxIcon Icon="BootstrapIcon.BadgeHdFill"></HxIcon>
+                                            <span>@DownloadEpisode.VideoFileInfo.Resolution</span>
+                                        </h5>
+                                    </HxBadge>
+                                    <HxBadge CssClass="mx-1 py-2 px-3" Type="BadgeType.Regular" Color="GetDownloadResolutionIconColor(DownloadEpisode.VideoFileInfo)">
+                                        <h5 class="d-inline align-middle fw-semibold">
+                                            <HxIcon Icon="BootstrapIcon.Nvidia"></HxIcon>
+                                            <span>@DownloadEpisode.VideoFileInfo.VideoCodec</span>
+                                        </h5>
+                                    </HxBadge>
+                                    <HxBadge CssClass="mx-1 py-2 px-3" Type="BadgeType.Regular" Color="GetDownloadResolutionIconColor(DownloadEpisode.VideoFileInfo)">
+                                        <h5 class="d-inline align-middle fw-semibold">
+                                            <HxIcon Icon="BootstrapIcon.Soundwave"></HxIcon>
+                                            <span>@DownloadEpisode.VideoFileInfo.AudioCodec</span>
+                                        </h5>
+                                    </HxBadge>
+                                </div>
                             }
                             else
                             {
@@ -416,7 +438,7 @@
 
     private TimeSpan SmoothedETA { get; set; }
 
-    private SettingsModel? Settings;
+    private SettingsModel Settings = new();
     private bool ShowDownloadPathError { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -741,4 +763,24 @@
         }
     }
 
+    private BootstrapIcon GetDownloadResolutionIcon(VideoFileInfoModel videoFileInfo)
+    {
+        return videoFileInfo.VideoResolution switch
+        {
+            VideoResolution.P1080 => BootstrapIcon.BadgeHdFill,
+            VideoResolution.P720 => BootstrapIcon.BadgeHdFill,
+            VideoResolution.P480 => BootstrapIcon.BadgeSdFill,
+            _ => BootstrapIcon.DiamondFill
+        };
+    }
+
+    private ThemeColor GetDownloadResolutionIconColor(VideoFileInfoModel videoFileInfo)
+    {
+        return videoFileInfo.VideoResolution switch
+        {
+            VideoResolution.P1080 | VideoResolution.P720 => ThemeColor.Success,
+            VideoResolution.P480 => ThemeColor.Light,
+            _ => ThemeColor.Danger
+        };
+    }
 }

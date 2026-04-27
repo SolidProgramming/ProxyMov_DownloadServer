@@ -19,8 +19,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
     private const int MaxGetVideoFileInfoRetries = 2;
 
     private static long PreviousDownloadSize;
-    private static DateTime? FFMPEGStartTime;    
-    private static EpisodeDownloadModel? Episode {  get; set; }
+    private static DateTime? FFMPEGStartTime;
+    private static EpisodeDownloadModel? Episode { get; set; }
     private static ConverterState ConverterState { get; set; } = ConverterState.Undefined;
 
     private bool IsInitialized { get; set; }
@@ -223,15 +223,15 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         string targetVideoCodec = converterSettings is not null
             ? (converterSettings.VideoCodec == VideoCodec.ORIGINAL
-                ? (episode.VideoFileInfo.VideoCodec?.ToUpperInvariant() ?? "UNKNOWN")
+                ? (episode.VideoFileInfo.VCodec?.ToUpperInvariant() ?? "UNKNOWN")
                 : converterSettings.VideoCodec.ToVideoCodecName().ToUpperInvariant())
-            : (episode.VideoFileInfo.VideoCodec?.ToUpperInvariant() ?? "UNKNOWN");
+            : (episode.VideoFileInfo.VCodec?.ToUpperInvariant() ?? "UNKNOWN");
 
         string targetAudioCodec = converterSettings is not null
             ? (converterSettings.AudioCodec == AudioCodec.ORIGINAL
-                ? (episode.VideoFileInfo.AudioCodec?.ToUpperInvariant() ?? "UNKNOWN")
+                ? (episode.VideoFileInfo.ACodec?.ToUpperInvariant() ?? "UNKNOWN")
                 : converterSettings.AudioCodec.ToAudioCodecName().ToUpperInvariant())
-            : (episode.VideoFileInfo.AudioCodec?.ToUpperInvariant() ?? "UNKNOWN");
+            : (episode.VideoFileInfo.ACodec?.ToUpperInvariant() ?? "UNKNOWN");
 
         string fileInfo = $"[{episode.VideoFileInfo.Resolution}][{targetAudioCodec}][{targetVideoCodec}]";
 
@@ -555,20 +555,37 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
                     .ThenByDescending(s => GetAudioCodecScore(s.CodecName))
                     .FirstOrDefault();
 
-            return new VideoFileInfoModel
+            VideoFileInfoModel fileInfo = new()
             {
                 Resolution = bestVideo?.Height is int h ? $"{h}p" : null,
-                VideoCodec = bestVideo?.CodecName,
-                AudioCodec = bestAudio?.CodecName,
+                VCodec = bestVideo?.CodecName,
+                VideoCodec = bestVideo?.CodecName?.ToVideoCodec(),
+                ACodec = bestAudio?.CodecName,
+                AudioCodec = bestAudio?.CodecName?.ToAudioCodec(),
                 VideoStreamIndex = bestVideo?.Index,
                 AudioStreamIndex = bestAudio?.Index
             };
+
+            fileInfo.VideoResolution = ParseVideoResolution(fileInfo.Resolution);
+
+            return fileInfo;
         }
         catch (Exception ex)
         {
             logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | Failed to parse video quality info: {ex.Message}");
             return null;
         }
+    }
+
+    private static VideoResolution ParseVideoResolution(string? videoResolution)
+    {
+        return videoResolution switch
+        {
+            "1080p" => VideoResolution.P1080,
+            "720p" => VideoResolution.P720,
+            "480p" => VideoResolution.P480,
+            _ => VideoResolution.UNKNOWN
+        };
     }
 
     private static long? ParseBitrate(string? bitrateText)

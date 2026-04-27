@@ -249,7 +249,10 @@
             SettingsHelper.SaveSettings(settings);
         }
 
-        await QuartzService.CreateJob(DownloaderPreferences.Interval);
+        if (DownloaderPreferences.AutoStart)
+        {
+            await QuartzService.CreateJob(DownloaderPreferences.Interval);
+        }
 
         ToastService.AddMessage(InfoMessage.DownloaderPreferencesSaved, MessageType.Success);
 

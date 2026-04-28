@@ -15,6 +15,7 @@
 @inject I18nText I18nText
 @inject IUpdateService UpdateService
 @inject CronJob CronJobService
+@inject DownloadRuntimeState RuntimeState
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -76,7 +77,7 @@
                         <td class="text-center align-middle" width="50">
                             @if (DownloadEpisode is not null)
                             {
-                                bool hasStopMark = DownloadEpisode.Download == CronJob.StopMarkDownload?.Download;
+                                bool hasStopMark = DownloadEpisode.Download == RuntimeState.StopMarkDownload?.Download;
 
                                 <HxButton OnClick="@(() => ToggleStopMark())"
                                           Color="@(hasStopMark ? ThemeColor.Info : ThemeColor.Secondary)"
@@ -409,6 +410,8 @@
 </div>
 
 
+@implements IDisposable
+
 @code {
     private Lang LangText = new();
 
@@ -450,7 +453,7 @@
     {
         if (firstRender)
         {
-            Settings = SettingsHelper.ReadSettings<SettingsModel>();
+            Settings = SettingsHelper.ReadSettings<SettingsModel>() ?? new();
 
             if (Settings is not null && string.IsNullOrEmpty(Settings.DownloadPath))
             {
@@ -458,13 +461,11 @@
                 return;
             }
 
-            CronJob.RemoveHandlers();
-
             ConverterState = ConverterService.GetConverterState();
 
-            CronJob.CronJobEvent += CronJobEvent;
-            CronJob.CronJobErrorEvent += CronJobErrorEvent;
-            CronJob.CronJobDownloadsEvent += CronJobDownloads;
+            RuntimeState.StateChanged += CronJobEvent;
+            RuntimeState.ErrorOccurred += CronJobErrorEvent;
+            RuntimeState.DownloadsChanged += CronJobDownloads;
             ConverterService.ConvertProgressChanged += Converter_ConvertProgressChanged;
             ConverterService.ConverterStateChanged += Converter_ConverterStateChanged;
 
@@ -489,7 +490,8 @@
 
             if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
             {
-                string assemblyVersion = typeof(Program).Assembly.GetName().Version.ToString();
+                Version version = typeof(Program).Assembly.GetName().Version ?? new Version(1, 0, 0);
+                string assemblyVersion = version.ToString();
                 await UpdateService.CheckForUpdates(assemblyVersion);
             }
         }
@@ -497,12 +499,12 @@
 
     private void RefreshCycleTime(object? source, ElapsedEventArgs e)
     {
-        if (CronJob.NextRun is null)
+        if (RuntimeState.NextRun is null)
         {
             return;
         }
 
-        NextCronJobCycle = CronJob.NextRun.Value;
+        NextCronJobCycle = RuntimeState.NextRun.Value;
         NextCronJobCyleTime = TimeOnly.FromDateTime(NextCronJobCycle.Value);
 
         if (NextCronJobCycle < DateTime.UtcNow.ToLocalTime().ToLocalTime())
@@ -574,15 +576,15 @@
 
     private void SetDownloadCounters()
     {
-        DownloadQueCount = CronJob.DownloadCount;
-        LanguageDownloadCount = CronJob.LanguageDownloadCount;
+        DownloadQueCount = RuntimeState.DownloadCount;
+        LanguageDownloadCount = RuntimeState.LanguageDownloadCount;
     }
 
     private void HandleCronJobState(CronJobState cronJobState = CronJobState.Undefined, bool fromEvent = false)
     {
         if (cronJobState == CronJobState.Undefined)
         {
-            CronJobState = CronJob.CronJobState;
+            CronJobState = RuntimeState.CronJobState;
         }
         else
         {
@@ -736,21 +738,21 @@
 
     private void ToggleStopMark()
     {
-        if (CronJob.StopMarkDownload is null)
+        if (RuntimeState.StopMarkDownload is null)
         {
-            CronJob.StopMarkDownload = new EpisodeDownloadModel();
+            RuntimeState.StopMarkDownload = new EpisodeDownloadModel();
         }
 
-        CronJob.StopMarkDownload.HasStopMark = !CronJob.StopMarkDownload.HasStopMark;
+        RuntimeState.StopMarkDownload.HasStopMark = !RuntimeState.StopMarkDownload.HasStopMark;
 
-        if (CronJob.StopMarkDownload.HasStopMark)
+        if (RuntimeState.StopMarkDownload.HasStopMark)
         {
             if (DownloadEpisode != null)
             {
-                CronJob.StopMarkDownload = new EpisodeDownloadModel
+                RuntimeState.StopMarkDownload = new EpisodeDownloadModel
                 {
                     Download = DownloadEpisode.Download,
-                    HasStopMark = CronJob.StopMarkDownload.HasStopMark
+                    HasStopMark = RuntimeState.StopMarkDownload.HasStopMark
                 };
             }
 
@@ -758,7 +760,7 @@
         }
         else
         {
-            CronJob.StopMarkDownload = null;
+            RuntimeState.StopMarkDownload = null;
             ToastService.AddMessage(InfoMessage.StopmarkUnset, MessageType.Secondary);
         }
     }
@@ -782,5 +784,20 @@
             VideoResolution.P480 => ThemeColor.Light,
             _ => ThemeColor.Danger
         };
+    }
+
+    public void Dispose()
+    {
+        RuntimeState.StateChanged -= CronJobEvent;
+        RuntimeState.ErrorOccurred -= CronJobErrorEvent;
+        RuntimeState.DownloadsChanged -= CronJobDownloads;
+        ConverterService.ConvertProgressChanged -= Converter_ConvertProgressChanged;
+        ConverterService.ConverterStateChanged -= Converter_ConverterStateChanged;
+
+        if (TmNextCycle is not null)
+        {
+            TmNextCycle.Elapsed -= RefreshCycleTime;
+            TmNextCycle.Dispose();
+        }
     }
 }

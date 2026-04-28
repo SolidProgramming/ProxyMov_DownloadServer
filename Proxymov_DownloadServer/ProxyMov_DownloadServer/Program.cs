@@ -68,6 +68,7 @@ builder.Services.AddHttpClient<IApiService, ApiService>();
 builder.Services.AddSingleton<IApiService, ApiService>();
 builder.Services.AddSingleton<IConverterService, ConverterService>();
 builder.Services.AddSingleton<ProxyMov_DownloadServer.Interfaces.IHttpClientFactory, HttpClientFactory>();
+builder.Services.AddSingleton<DownloadRuntimeState>();
 builder.Services.AddSingleton<IQuartzService, QuartzService>();
 builder.Services.AddSingleton<IUpdateService, UpdateService>();
 builder.Services.AddTransient<CronJob>();

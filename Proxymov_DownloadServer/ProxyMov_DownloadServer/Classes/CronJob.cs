@@ -13,28 +13,10 @@ internal class CronJob(
     IConverterService converterService,
     IHostApplicationLifetime appLifetime,
     IQuartzService quartzService,
+    DownloadRuntimeState runtimeState,
     IStreamingPortalServiceFactory streamingPortalServiceFactory) : IJob
 {
-    public delegate void CronJobDownloadsEventHandler(int downloadCount, int languageDownloadCount);
-
-    public delegate void CronJobErrorEventHandler(MessageType messageType, string message);
-
-    public delegate void CronJobEventHandler(CronJobState jobState);
-
-    public static Queue<EpisodeDownloadModel>? DownloadQue;
-    public static List<EpisodeDownloadModel> SkippedDownloads = [];
-
-    public static EpisodeDownloadModel? StopMarkDownload;
-
-    public static int Interval;
-    public static DateTime? NextRun;
-
     private IBrowser? Browser;
-    public static CronJobState CronJobState { get; set; } = CronJobState.WaitForNextCycle;
-
-    public static int DownloadCount { get; set; }
-    public static int LanguageDownloadCount { get; set; }
-
     private bool RegisteredShutdown { get; set; }
 
     public async Task Execute(IJobExecutionContext context)
@@ -46,42 +28,33 @@ internal class CronJob(
             RegisteredShutdown = true;
         }
 
-        NextRun = context!.NextFireTimeUtc!.Value.ToLocalTime().DateTime;
+        runtimeState.NextRun = context!.NextFireTimeUtc!.Value.ToLocalTime().DateTime;
         await CheckForNewDownloads();
     }
 
-    public static event CronJobEventHandler? CronJobEvent;
-    public static event CronJobErrorEventHandler? CronJobErrorEvent;
-    public static event CronJobDownloadsEventHandler? CronJobDownloadsEvent;
-
     private void SetCronJobState(CronJobState jobState)
     {
-        CronJobState = jobState;
+        runtimeState.SetState(jobState);
         logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.CronJobChangedState} {jobState}");
-
-        CronJobEvent?.Invoke(jobState);
     }
 
-    private static void SetCronJobDownloads(int downloadCount, int languageDownloadCount)
+    private void SetCronJobDownloads(int downloadCount, int languageDownloadCount)
     {
-        DownloadCount = downloadCount;
-        LanguageDownloadCount = languageDownloadCount;
-
-        CronJobDownloadsEvent?.Invoke(downloadCount, languageDownloadCount);
+        runtimeState.SetDownloadCounts(downloadCount, languageDownloadCount);
     }
 
     public async Task CheckForNewDownloads()
     {
-        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {CronJobState}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {runtimeState.CronJobState}");
 
-        if (CronJobState != CronJobState.WaitForNextCycle) return;
+        if (runtimeState.CronJobState != CronJobState.WaitForNextCycle) return;
 
         SettingsModel? settings = SettingsHelper.ReadSettings<SettingsModel>();
 
         if (settings is null || string.IsNullOrEmpty(settings.DownloadPath) || string.IsNullOrEmpty(settings.ApiUrl))
         {
             logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettings}");
-            CronJobErrorEvent?.Invoke(MessageType.Error, ErrorMessage.ReadSettings);
+            runtimeState.RaiseError(MessageType.Error, ErrorMessage.ReadSettings);
             return;
         }
 
@@ -93,10 +66,11 @@ internal class CronJob(
 
         SetCronJobState(CronJobState.CheckingForDownloads);
 
-        DownloaderPreferencesModel? downloaderPreferences = await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences") ?? new();
+        DownloaderPreferencesModel? downloaderPreferences =
+            await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences") ?? new();
         string? logMessage;
 
-        SkippedDownloads.Clear();
+        runtimeState.ClearSkippedDownloads();
 
         IEnumerable<EpisodeDownloadModel>? downloads =
             await apiService.GetAsync<IEnumerable<EpisodeDownloadModel>?>("getDownloads");
@@ -106,26 +80,26 @@ internal class CronJob(
             SetCronJobDownloads(0, 0);
             SetCronJobState(CronJobState.WaitForNextCycle);
 
-            CronJobErrorEvent?.Invoke(MessageType.Info, InfoMessage.NoDownloadsInQueue);
+            runtimeState.RaiseError(MessageType.Info, InfoMessage.NoDownloadsInQueue);
             return;
         }
 
         SetCronJobState(CronJobState.Running);
 
-        DownloadQue = downloads.EnqueueRange();
+        runtimeState.SetDownloadQueue(downloads.EnqueueRange());
         ConverterService.CTS = new CancellationTokenSource();
 
-        while (DownloadQue!.Count != 0)
+        while (runtimeState.DownloadQueue!.Count != 0)
         {
             if (ConverterService.CTS is not null && ConverterService.CTS.IsCancellationRequested &&
                 !ConverterService.AbortIsSkip)
                 break;
 
-            EpisodeDownloadModel episode = DownloadQue.Dequeue();
+            EpisodeDownloadModel episode = runtimeState.DownloadQueue.Dequeue();
 
-            if (SkippedDownloads.Contains(episode)) continue;
+            if (runtimeState.SkippedDownloads.Contains(episode)) continue;
 
-            SetCronJobDownloads(DownloadQue.Count, 0);
+            SetCronJobDownloads(runtimeState.DownloadQueue.Count, 0);
 
             if (string.IsNullOrEmpty(episode.Download.Name)) continue;
 
@@ -144,7 +118,7 @@ internal class CronJob(
             }
             catch (HttpRequestException ex)
             {
-                CronJobErrorEvent?.Invoke(MessageType.Error, ex.Message);
+                runtimeState.RaiseError(MessageType.Error, ex.Message);
                 logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ex.Message}");
 
                 hasError = true;
@@ -152,7 +126,7 @@ internal class CronJob(
             }
             catch (Exception ex)
             {
-                CronJobErrorEvent?.Invoke(MessageType.Error, ex.Message);
+                runtimeState.RaiseError(MessageType.Error, ex.Message);
                 logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ex.Message}");
 
                 hasError = true;
@@ -160,7 +134,7 @@ internal class CronJob(
             }
             finally
             {
-                if (hasError) CronJobErrorEvent?.Invoke(MessageType.Warning, WarningMessage.DownloadNotRemoved);
+                if (hasError) runtimeState.RaiseError(MessageType.Warning, WarningMessage.DownloadNotRemoved);
             }
 
             if (directViewLinks == null || directViewLinks.Count == 0) continue;
@@ -168,13 +142,16 @@ internal class CronJob(
             IEnumerable<Language> episodeLanguages =
                 episode.Download.LanguageFlag.GetFlags<Language>(Language.None);
 
-            List<DirectViewLinkModel> selectedDirectViewLinks = [.. directViewLinks.Where(_ => episodeLanguages.Contains(_.Language))];
+            List<DirectViewLinkModel> selectedDirectViewLinks =
+            [
+                .. directViewLinks.Where(_ => episodeLanguages.Contains(_.Language))
+            ];
 
             int finishedDownloadsCount = 1;
 
             foreach (DirectViewLinkModel directViewLink in selectedDirectViewLinks)
             {
-                SetCronJobDownloads(DownloadQue.Count, selectedDirectViewLinks.Count - finishedDownloadsCount);
+                SetCronJobDownloads(runtimeState.DownloadQueue.Count, selectedDirectViewLinks.Count - finishedDownloadsCount);
 
                 episode.M3U8Url = await GetEpisodeM3U8(directViewLink.DirectLink, downloaderPreferences);
 
@@ -182,7 +159,7 @@ internal class CronJob(
                 {
                     logMessage =
                         $"Für \"{originalEpisodeName} | S{episode.Download.Season:D2} E{episode.Download.Episode:D2}\" wurde keine Video Source gefunden.";
-                    CronJobErrorEvent?.Invoke(MessageType.Secondary, logMessage);
+                    runtimeState.RaiseError(MessageType.Secondary, logMessage);
                     continue;
                 }
 
@@ -201,14 +178,14 @@ internal class CronJob(
 
                 if (result is not null && result.Skipped)
                 {
-                    CronJobErrorEvent?.Invoke(MessageType.Secondary, InfoMessage.EpisodeDownloadSkipped);
+                    runtimeState.RaiseError(MessageType.Secondary, InfoMessage.EpisodeDownloadSkipped);
 
                     continue;
                 }
 
                 if (result is not null && result.SkippedNoResult)
                 {
-                    CronJobErrorEvent?.Invoke(MessageType.Secondary, InfoMessage.EpisodeDownloadSkippedFileExists);
+                    runtimeState.RaiseError(MessageType.Secondary, InfoMessage.EpisodeDownloadSkippedFileExists);
 
                     await RemoveDownload(episode);
 
@@ -220,17 +197,17 @@ internal class CronJob(
                     if (ConverterService.CTS.IsCancellationRequested)
                     {
                         logMessage = $"{WarningMessage.DownloadCanceled} {WarningMessage.DownloadNotRemoved}";
-                        CronJobErrorEvent?.Invoke(MessageType.Warning, logMessage);
+                        runtimeState.RaiseError(MessageType.Warning, logMessage);
                         break;
                     }
 
                     logMessage = $"{WarningMessage.FFMPEGExecutableFail}\n{WarningMessage.DownloadNotRemoved}";
-                    CronJobErrorEvent?.Invoke(MessageType.Warning, logMessage);
+                    runtimeState.RaiseError(MessageType.Warning, logMessage);
                 }
 
                 if (result is not null && result.IsSuccess)
                 {
-                    CronJobErrorEvent?.Invoke(MessageType.Success, InfoMessage.DownloadFinished);
+                    runtimeState.RaiseError(MessageType.Success, InfoMessage.DownloadFinished);
 
                     if (finishedDownloadsCount >= selectedDirectViewLinks.Count)
                     {
@@ -239,35 +216,20 @@ internal class CronJob(
                 }
             }
 
-            if (StopMarkDownload is not null && StopMarkDownload.Download == episode.Download)
+            if (runtimeState.StopMarkDownload is not null && runtimeState.StopMarkDownload.Download == episode.Download)
             {
                 await Abort();
                 quartzService.CancelJob();
-                StopMarkDownload = null;
-                CronJobErrorEvent?.Invoke(MessageType.Info, InfoMessage.StopMarkReached);
+                runtimeState.StopMarkDownload = null;
+                runtimeState.RaiseError(MessageType.Info, InfoMessage.StopMarkReached);
                 SetCronJobState(CronJobState.Paused);
                 break;
             }
         }
 
-        DownloadQue = null;
+        runtimeState.SetDownloadQueue(null);
         SetCronJobDownloads(0, 0);
         SetCronJobState(CronJobState.WaitForNextCycle);
-    }
-
-    public static void RemoveHandlers()
-    {
-        if (CronJobEvent is not null)
-            foreach (Delegate d in CronJobEvent.GetInvocationList())
-                CronJobEvent -= (CronJobEventHandler)d;
-
-        if (CronJobErrorEvent is not null)
-            foreach (Delegate d in CronJobErrorEvent.GetInvocationList())
-                CronJobErrorEvent -= (CronJobErrorEventHandler)d;
-
-        if (CronJobDownloadsEvent is not null)
-            foreach (Delegate d in CronJobDownloadsEvent.GetInvocationList())
-                CronJobDownloadsEvent -= (CronJobDownloadsEventHandler)d;
     }
 
     public async Task Abort()
@@ -275,7 +237,7 @@ internal class CronJob(
         if (Browser is not null) await Browser.CloseAsync();
 
         ConverterService.Abort();
-        NextRun = null;
+        runtimeState.NextRun = null;
     }
 
     private async Task<string?> GetEpisodeM3U8(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
@@ -457,6 +419,6 @@ internal class CronJob(
     {
         bool removeSuccess = await apiService.RemoveFinishedDownload(episodeDownload);
 
-        if (!removeSuccess) CronJobErrorEvent?.Invoke(MessageType.Warning, WarningMessage.DownloadNotRemoved);
+        if (!removeSuccess) runtimeState.RaiseError(MessageType.Warning, WarningMessage.DownloadNotRemoved);
     }
 }

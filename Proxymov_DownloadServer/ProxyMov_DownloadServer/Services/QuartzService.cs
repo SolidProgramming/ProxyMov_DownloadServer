@@ -1,8 +1,8 @@
-﻿using Quartz;
+using Quartz;
 
 namespace ProxyMov_DownloadServer.Services;
 
-public class QuartzService(ISchedulerFactory schedulerFactory) : IQuartzService
+public class QuartzService(ISchedulerFactory schedulerFactory, DownloadRuntimeState runtimeState) : IQuartzService
 {
     private JobKey? JobKey;
 
@@ -43,8 +43,8 @@ public class QuartzService(ISchedulerFactory schedulerFactory) : IQuartzService
                 .StartAt(startTime)
                 .Build();
 
-            CronJob.NextRun = startTime.DateTime;
-            CronJob.Interval = intervalInMinutes;
+            runtimeState.NextRun = startTime.DateTime;
+            runtimeState.Interval = intervalInMinutes;
 
             if (Scheduler != null) await Scheduler.ScheduleJob(job, Trigger, CancellationToken);
         }
@@ -61,7 +61,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory) : IQuartzService
                 .ForJob(JobKey)
                 .WithIdentity(JobName + "-trigger")
                 .WithSimpleSchedule(_ =>
-                    _.WithIntervalInMinutes(CronJob.Interval)
+                    _.WithIntervalInMinutes(runtimeState.Interval)
                         .RepeatForever())
                 .StartNow()
                 .Build();

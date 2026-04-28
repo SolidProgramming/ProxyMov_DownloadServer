@@ -4,11 +4,15 @@ namespace ProxyMov_DownloadServer.Models;
 
 internal class SettingsModel
 {
-    [JsonProperty("ApiUrl")] public string ApiUrl { get; set; } = null!;
+    [JsonProperty(nameof(ApiUrl))]
+    public string? ApiUrl { get; set; }
 
-    [JsonProperty("APIKey")] public string? ApiKey { get; set; }
+    [JsonProperty("APIKey")]
+    public string? ApiKey { get; set; }
 
-    [JsonProperty("DownloadPath")] public string? DownloadPath { get; set; }
+    [JsonProperty(nameof(DownloadPath))]
+    public string? DownloadPath { get; set; }
 
-    [JsonProperty("ConverterSettings")] public ConverterSettingsModel? ConverterSettings { get; set; }
+    [JsonProperty(nameof(ConverterSettings))]
+    public ConverterSettingsModel? ConverterSettings { get; set; }
 }

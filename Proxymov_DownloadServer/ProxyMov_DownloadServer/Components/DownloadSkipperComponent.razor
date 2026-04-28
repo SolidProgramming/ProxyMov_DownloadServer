@@ -31,6 +31,9 @@
     </div>
 }
 
+@inject DownloadRuntimeState RuntimeState
+@implements IDisposable
+
 @code {
     private List<EpisodeDownloadModel>? Downloads { get; set; } = [];
     private CronJobState CronJobState = CronJobState.WaitForNextCycle;
@@ -39,20 +42,20 @@
     {
         if (!firstRender) return;
 
-        CronJob.CronJobEvent += CronJobEvent;
-        CronJob.CronJobDownloadsEvent += CronJobDownloads;
+        RuntimeState.StateChanged += CronJobEvent;
+        RuntimeState.DownloadsChanged += CronJobDownloads;
     }
 
     private void CronJobDownloads(int downloadCount, int languageDownloadCount)
     {
-        Downloads = CronJob.DownloadQue?.ToList().Except(CronJob.SkippedDownloads).ToList();
+        Downloads = RuntimeState.GetVisibleDownloads();
 
         InvokeAsync(StateHasChanged);
     }
 
     private void CronJobEvent(CronJobState jobState)
     {
-        CronJobState = CronJob.CronJobState;
+        CronJobState = RuntimeState.CronJobState;
 
         switch (jobState)
         {
@@ -74,6 +77,12 @@
     private IEnumerable<IGrouping<string, EpisodeDownloadModel>> GetGroupedDownloads()
     {
         return Downloads?.GroupBy(_ => _.Download.Name).Take(5);
+    }
+
+    public void Dispose()
+    {
+        RuntimeState.StateChanged -= CronJobEvent;
+        RuntimeState.DownloadsChanged -= CronJobDownloads;
     }
 
 }

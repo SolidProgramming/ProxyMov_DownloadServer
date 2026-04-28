@@ -361,6 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+.dotnet/*
+.publish-artifacts/
 /ProxyMov_DownloadServer/appdata/*
 /ProxyMov_DownloadServer/Binaries/*
 /ProxyMov_DownloadServer/settings.json

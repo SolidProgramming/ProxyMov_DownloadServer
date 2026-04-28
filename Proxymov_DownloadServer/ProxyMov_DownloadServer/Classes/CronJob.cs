@@ -17,6 +17,7 @@ internal class CronJob(
     IStreamingPortalServiceFactory streamingPortalServiceFactory) : IJob
 {
     private IBrowser? Browser;
+    private IPage? CurrentPage;
     private bool RegisteredShutdown { get; set; }
 
     public async Task Execute(IJobExecutionContext context)
@@ -153,7 +154,7 @@ internal class CronJob(
             {
                 SetCronJobDownloads(runtimeState.DownloadQueue.Count, selectedDirectViewLinks.Count - finishedDownloadsCount);
 
-                episode.M3U8Url = await GetEpisodeM3U8(directViewLink.DirectLink, downloaderPreferences);
+                episode.M3U8Url = await GetEpisodeM3U8(directViewLink.DirectLink, downloaderPreferences, ConverterService.CTS?.Token ?? CancellationToken.None);
 
                 if (string.IsNullOrEmpty(episode.M3U8Url))
                 {
@@ -234,14 +235,26 @@ internal class CronJob(
 
     public async Task Abort()
     {
-        if (Browser is not null) await Browser.CloseAsync();
+        if (CurrentPage is not null)
+        {
+            await CurrentPage.CloseAsync();
+            CurrentPage = null;
+        }
+
+        if (Browser is not null)
+        {
+            await Browser.CloseAsync();
+            Browser = null;
+        }
 
         ConverterService.Abort();
         runtimeState.NextRun = null;
     }
 
-    private async Task<string?> GetEpisodeM3U8(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
+    private async Task<string?> GetEpisodeM3U8(string streamUrl, DownloaderPreferencesModel downloaderPreferences, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Browser ??= await Puppeteer.LaunchAsync(new LaunchOptions
         {
             Headless = true,
@@ -256,17 +269,21 @@ internal class CronJob(
         logger.LogInformation(
             $"{DateTime.UtcNow.ToLocalTime()} | Use Proxy: {downloaderPreferences.UseProxy} {(downloaderPreferences.UseProxy ? proxyLogText : "")}");
 
-        using IPage? page = await Browser.NewPageAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        CurrentPage = await Browser.NewPageAsync();
 
         try
         {
-            string? videoPageHtml = await GetVideoPageHtml(page, streamUrl);
+            cancellationToken.ThrowIfCancellationRequested();
+            string? videoPageHtml = await GetVideoPageHtml(CurrentPage, streamUrl, cancellationToken);
 
             if (string.IsNullOrEmpty(videoPageHtml)) return null;
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (TryGetVideoSource(videoPageHtml, out string? m3u8)) return m3u8;
 
-            string? m3u8FromJwPlayer = await GetM3U8ViaJwPlayer(page);
+            cancellationToken.ThrowIfCancellationRequested();
+            string? m3u8FromJwPlayer = await GetM3U8ViaJwPlayer(CurrentPage, cancellationToken);
 
             if (!string.IsNullOrEmpty(m3u8FromJwPlayer))
             {
@@ -275,6 +292,10 @@ internal class CronJob(
 
             return null;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex.Message);
@@ -282,8 +303,17 @@ internal class CronJob(
         }
         finally
         {
-            await Browser.CloseAsync();
-            Browser = null;
+            if (CurrentPage is not null)
+            {
+                await CurrentPage.CloseAsync();
+                CurrentPage = null;
+            }
+
+            if (Browser is not null)
+            {
+                await Browser.CloseAsync();
+                Browser = null;
+            }
         }
     }
 
@@ -331,29 +361,33 @@ internal class CronJob(
         return false;
     }
 
-    private async Task<string?> GetVideoPageHtml(IPage page, string streamUrl)
+    private async Task<string?> GetVideoPageHtml(IPage page, string streamUrl, CancellationToken cancellationToken)
     {
         logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Navigation to Page {streamUrl}");
 
+        cancellationToken.ThrowIfCancellationRequested();
         await page.GoToAsync(streamUrl, new NavigationOptions
         {
             WaitUntil = [WaitUntilNavigation.DOMContentLoaded],
             Timeout = 10000
         });
+        cancellationToken.ThrowIfCancellationRequested();
 
         return await page.GetContentAsync();
     }
 
-    private async Task<string?> GetM3U8ViaJwPlayer(IPage page)
+    private async Task<string?> GetM3U8ViaJwPlayer(IPage page, CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await page.WaitForFunctionAsync(@"() => {
                     return typeof jwplayer !== 'undefined' && 
                            jwplayer('a') && 
                            typeof jwplayer('a').getPlaylist === 'function';
                 }", new WaitForFunctionOptions { Timeout = 10000 });
 
+            cancellationToken.ThrowIfCancellationRequested();
             await page.EvaluateFunctionAsync(@"() => {
                     const player = jwplayer('a');
                     if (player && typeof player.play === 'function') {
@@ -361,8 +395,9 @@ internal class CronJob(
                     }
                 }");
 
-            await Task.Delay(2000);
+            await Task.Delay(2000, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             string? m3u8Url = await page.EvaluateFunctionAsync<string?>(@"() => {
                     try {
                         const player = jwplayer('a');
@@ -407,6 +442,10 @@ internal class CronJob(
                 }");
 
             return m3u8Url;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

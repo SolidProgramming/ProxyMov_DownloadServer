@@ -69,98 +69,98 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             ArgumentException.ThrowIfNullOrEmpty(episode.M3U8Url, nameof(episode.M3U8Url));
         }
 
-        VideoFileInfoModel? videoFileInfo = await GetVideoFileInfo(episode.M3U8Url, downloaderPreferences, converterSettings);
-
-        if (videoFileInfo == null)
-        {
-            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | No stream duration found!");
-            return null;
-        }
-
-        episode.VideoFileInfo = videoFileInfo;
-
-        string filePath = GetFileName(episode, downloadPath, converterSettings, language);
-
-        TimeSpan streamDuration = await GetStreamDuration(episode.M3U8Url, downloaderPreferences);
-
-        if (streamDuration == TimeSpan.Zero)
-        {
-            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | No stream duration found!");
-            return null;
-        }
-
-        episode.Download.StreamDuration = streamDuration;
-
-        if (File.Exists(filePath))
-        {
-            TimeSpan durationExistingFile = TimeSpan.Zero;
-            durationExistingFile = await GetStreamDurationFromFile(filePath);
-
-            if (durationExistingFile.Minutes == streamDuration.Minutes &&
-                durationExistingFile.Seconds == streamDuration.Seconds)
-            {
-                logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.EpisodeDownloadSkippedFileExists}");
-
-                return new CommandResultExt(skippedNoResult: true);
-            }
-        }
-
         Episode = episode;
-
         ConverterStateChanged?.Invoke(ConverterState.Downloading, episode);
-
-        string args = "";
-        string proxyAuthArgs = "";
-
-        if (downloaderPreferences.UseProxy && !string.IsNullOrWhiteSpace(downloaderPreferences.ProxyUri))
-        {
-            string proxyUri = downloaderPreferences.ProxyUri.Replace("http://", "").Replace("https://", "");
-            proxyAuthArgs =
-                $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
-        }
-
-        string hwAccell = "-hwaccel cuda -hwaccel_output_format cuda";
-        bool useHwAccell = false;
-
-        if (converterSettings is not null)
-        {
-            if (converterSettings.VideoCodec == VideoCodec.H264NVENC ||
-                converterSettings.VideoCodec == VideoCodec.H265NVENC)
-            {
-                useHwAccell = true;
-            }
-
-            string mapArgs = "";
-
-            if (episode.VideoFileInfo.VideoStreamIndex.HasValue)
-                mapArgs += $"-map 0:{episode.VideoFileInfo.VideoStreamIndex.Value} ";
-
-            if (episode.VideoFileInfo.AudioStreamIndex.HasValue)
-                mapArgs += $"-map 0:{episode.VideoFileInfo.AudioStreamIndex.Value} ";
-
-            if (string.IsNullOrWhiteSpace(mapArgs))
-                mapArgs = "-map 0:v:0 -map 0:a:0 ";
-
-            args =
-                $"-y {(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} {(useHwAccell ? hwAccell : "")} -i \"{episode.M3U8Url}\" {mapArgs}-acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
-        }
-        else
-        {
-            logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettings}");
-        }
-
-        string binPath = Helper.GetFFMPEGPath();
-
-        ConvertStarted?.Invoke(episode);
-
-        Episode.Download.DownloadStartTime = DateTime.UtcNow.ToLocalTime();
-
         CTS = new CancellationTokenSource();
+        string? filePath = null;
 
         CommandResultExt? result = null;
 
         try
         {
+            VideoFileInfoModel? videoFileInfo =
+                await GetVideoFileInfo(episode.M3U8Url, downloaderPreferences, converterSettings, CTS.Token);
+
+            if (videoFileInfo == null)
+            {
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | No stream duration found!");
+                return null;
+            }
+
+            episode.VideoFileInfo = videoFileInfo;
+
+            filePath = GetFileName(episode, downloadPath, converterSettings, language);
+
+            TimeSpan streamDuration = await GetStreamDuration(episode.M3U8Url, downloaderPreferences, CTS.Token);
+
+            if (streamDuration == TimeSpan.Zero)
+            {
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | No stream duration found!");
+                return null;
+            }
+
+            episode.Download.StreamDuration = streamDuration;
+
+            if (File.Exists(filePath))
+            {
+                TimeSpan durationExistingFile = TimeSpan.Zero;
+                durationExistingFile = await GetStreamDurationFromFile(filePath);
+
+                if (durationExistingFile.Minutes == streamDuration.Minutes &&
+                    durationExistingFile.Seconds == streamDuration.Seconds)
+                {
+                    logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {InfoMessage.EpisodeDownloadSkippedFileExists}");
+
+                    return new CommandResultExt(skippedNoResult: true);
+                }
+            }
+
+            string args = "";
+            string proxyAuthArgs = "";
+
+            if (downloaderPreferences.UseProxy && !string.IsNullOrWhiteSpace(downloaderPreferences.ProxyUri))
+            {
+                string proxyUri = downloaderPreferences.ProxyUri.Replace("http://", "").Replace("https://", "");
+                proxyAuthArgs =
+                    $"-http_proxy http://{downloaderPreferences.ProxyUsername}:{downloaderPreferences.ProxyPassword}@{proxyUri}";
+            }
+
+            string hwAccell = "-hwaccel cuda -hwaccel_output_format cuda";
+            bool useHwAccell = false;
+
+            if (converterSettings is not null)
+            {
+                if (converterSettings.VideoCodec == VideoCodec.H264NVENC ||
+                    converterSettings.VideoCodec == VideoCodec.H265NVENC)
+                {
+                    useHwAccell = true;
+                }
+
+                string mapArgs = "";
+
+                if (episode.VideoFileInfo.VideoStreamIndex.HasValue)
+                    mapArgs += $"-map 0:{episode.VideoFileInfo.VideoStreamIndex.Value} ";
+
+                if (episode.VideoFileInfo.AudioStreamIndex.HasValue)
+                    mapArgs += $"-map 0:{episode.VideoFileInfo.AudioStreamIndex.Value} ";
+
+                if (string.IsNullOrWhiteSpace(mapArgs))
+                    mapArgs = "-map 0:v:0 -map 0:a:0 ";
+
+                args =
+                    $"-y {(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} {(useHwAccell ? hwAccell : "")} -i \"{episode.M3U8Url}\" {mapArgs}-acodec {converterSettings.AudioCodec.ToAudioCodec()} -vcodec {converterSettings.VideoCodec.ToVideoCodec()} -sn \"{filePath}\" -f {converterSettings.FileFormat.ToFileFormat()}";
+            }
+            else
+            {
+                logger.LogError($"{DateTime.UtcNow.ToLocalTime()} | {ErrorMessage.ReadSettings}");
+            }
+
+            string binPath = Helper.GetFFMPEGPath();
+
+            ConvertStarted?.Invoke(episode);
+
+            Episode.Download.DownloadStartTime = DateTime.UtcNow.ToLocalTime();
+
             CommandResult tempResult = await Cli.Wrap(binPath)
                 .WithArguments(args)
                 .WithValidation(CommandResultValidation.ZeroExitCode)
@@ -171,16 +171,26 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         catch (OperationCanceledException)
         {
-            if (File.Exists(filePath)) File.Delete(filePath);
+            if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
 
             if (AbortIsSkip)
+            {
                 return new CommandResultExt(skipped: true);
+            }
             else
+            {
                 logger.LogWarning($"{DateTime.UtcNow.ToLocalTime()} | {WarningMessage.DownloadCanceled}");
+            }
         }
         catch (Exception ex)
         {
-            if (File.Exists(filePath)) File.Delete(filePath);
+            if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
 
             logger.LogError($"{DateTime.UtcNow.ToLocalTime()} |FFMPEG: {ex}");
         }
@@ -350,7 +360,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return remainingTimeSpan;
     }
 
-    private async Task<TimeSpan> GetStreamDuration(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
+    private async Task<TimeSpan> GetStreamDuration(string streamUrl, DownloaderPreferencesModel downloaderPreferences, CancellationToken cancellationToken)
     {
         string proxyAuthArgs = "";
 
@@ -367,7 +377,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         for (int attempt = 1; attempt <= MaxGetStreamDurationRetries; attempt++)
         {
-            streamDuration = await TryGetStreamDuration(ffProbeArgs, attempt);
+            cancellationToken.ThrowIfCancellationRequested();
+            streamDuration = await TryGetStreamDuration(ffProbeArgs, attempt, cancellationToken);
 
             if (streamDuration != TimeSpan.Zero)
             {
@@ -378,13 +389,14 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return TimeSpan.Zero;
     }
 
-    private async Task<TimeSpan> TryGetStreamDuration(string ffProbeArgs, int attemptCount)
+    private async Task<TimeSpan> TryGetStreamDuration(string ffProbeArgs, int attemptCount, CancellationToken cancellationToken)
     {
         int waitDuration = attemptCount * 5;
 
         StringBuilder stdOutBuffer = new();
 
-        CancellationTokenSource cts = new(TimeSpan.FromSeconds(waitDuration));
+        using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(waitDuration));
 
         string ffProbeBinPath = Helper.GetFFProbePath();
 
@@ -398,6 +410,11 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         catch (OperationCanceledException)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             logger.LogWarning(
                 $"{DateTime.UtcNow.ToLocalTime()} | Failed to get stream duration! Retries left: {MaxGetStreamDurationRetries - attemptCount}");
             return TimeSpan.Zero;
@@ -456,13 +473,14 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return TimeSpan.Parse(output);
     }
 
-    public async Task<VideoFileInfoModel?> GetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings)
+    public async Task<VideoFileInfoModel?> GetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, CancellationToken cancellationToken)
     {
         VideoFileInfoModel? videoQualityInfo;
 
         for (int attempt = 1; attempt <= MaxGetVideoFileInfoRetries; attempt++)
         {
-            videoQualityInfo = await TryGetVideoFileInfo(streamUrl, downloaderPreferences, converterSettings, attempt);
+            cancellationToken.ThrowIfCancellationRequested();
+            videoQualityInfo = await TryGetVideoFileInfo(streamUrl, downloaderPreferences, converterSettings, attempt, cancellationToken);
 
             if (videoQualityInfo is not null)
                 return videoQualityInfo;
@@ -471,7 +489,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return null;
     }
 
-    private async Task<VideoFileInfoModel?> TryGetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, int attemptCount)
+    private async Task<VideoFileInfoModel?> TryGetVideoFileInfo(string streamUrl, DownloaderPreferencesModel downloaderPreferences, ConverterSettingsModel? converterSettings, int attemptCount, CancellationToken cancellationToken)
     {
         int waitDuration = attemptCount * 10;
 
@@ -488,7 +506,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         string arguments = $"{(downloaderPreferences.UseProxy ? proxyAuthArgs : "")} -v error -print_format json -show_streams \"{streamUrl}\"";
 
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(waitDuration));
+        using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(waitDuration));
 
         try
         {
@@ -500,6 +519,11 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         catch (OperationCanceledException)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             logger.LogWarning($"{DateTime.UtcNow.ToLocalTime()} | Failed to get stream/video quality info! Retries left: {MaxGetVideoFileInfoRetries - attemptCount}");
             return null;
         }

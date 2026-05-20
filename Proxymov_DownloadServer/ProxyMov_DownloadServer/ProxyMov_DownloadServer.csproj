@@ -19,7 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Aspire.Dashboard.Sdk.win-x64" Version="13.2.2" />
+        <PackageReference Include="Aspire.Dashboard.Sdk.win-x64" Version="13.3.2" />
         <PackageReference Include="CliWrap" Version="3.10.1" />
         <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.24.3" />
         <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />

@@ -219,6 +219,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         string seasonFolderName;
         string episodeFolderName;
 
+        episode.Download.Name = episode.Download.Name.GetValidFileName();
+
         string? languageName = language.ToLanguageName();
 
         string targetVideoCodec = converterSettings is not null

@@ -372,3 +372,5 @@ FodyWeavers.xsd
 **/appdata/**
 **/Binaries/**
 **/settings.json
+/.publish-artifacts
+/.dotnet/.dotnet

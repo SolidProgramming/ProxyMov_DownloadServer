@@ -59,6 +59,8 @@ namespace ProxyMov_DownloadServer.Classes
             return GetLanguageRedirectLinks(html);
         }
 
+        public abstract string GetHosterEpisodeUrl(EpisodeDownloadModel episode);
+
         protected abstract List<DirectViewLinkModel>? GetLanguageRedirectLinks(string html);
         public abstract Task<List<DirectViewLinkModel>?> GetDirectViewLinksAsync(EpisodeDownloadModel episode);
     }

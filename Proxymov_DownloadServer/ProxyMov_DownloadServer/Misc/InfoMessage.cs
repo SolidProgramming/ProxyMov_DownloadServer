@@ -18,4 +18,5 @@ internal class InfoMessage
     internal const string StopMarkReached = "Haltemarke erreicht! Downloads werden pausiert!";
     internal const string StopmarkSet = "Haltemarke gesetzt!";
     internal const string StopmarkUnset = "Haltemarke entfernt!";
+    internal const string CaptchaDetected = $"Cloudflare captcha detected: Please open following Url in your Browser and solve the captcha: ";
 }

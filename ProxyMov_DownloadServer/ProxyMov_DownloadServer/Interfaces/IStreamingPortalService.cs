@@ -10,5 +10,6 @@ namespace ProxyMov_DownloadServer.Interfaces
         Task<bool> InitAsync(WebProxy? proxy = null);
         HttpClient? GetHttpClient();
         Task<List<DirectViewLinkModel>?> GetDirectViewLinksAsync(EpisodeDownloadModel episode);
+        string GetHosterEpisodeUrl(EpisodeDownloadModel episode);
     }
 }

@@ -13,6 +13,11 @@ namespace ProxyMov_DownloadServer.Services
             return GetDirectViewLinksAsync(url);
         }
 
+        public override string GetHosterEpisodeUrl(EpisodeDownloadModel episode)
+        {
+            return $"{BaseUrl}/anime/stream{episode.Download.Path}/{string.Format(Globals.LinkBlueprint, episode.Download.Season, episode.Download.Episode)}";
+        }
+
         protected override List<DirectViewLinkModel>? GetLanguageRedirectLinks(string html)
         {
             HtmlDocument document = new();

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
@@ -110,11 +111,13 @@ internal class CronJob(
 
             List<DirectViewLinkModel>? directViewLinks;
             bool hasError = false;
+            string hosterEpisodeUrl;
 
             try
             {
                 IStreamingPortalService streamingPortalService = streamingPortalServiceFactory.GetService(streamingPortal);
                 directViewLinks = await streamingPortalService.GetDirectViewLinksAsync(episode);
+                hosterEpisodeUrl = streamingPortalService.GetHosterEpisodeUrl(episode);
             }
             catch (HttpRequestException ex)
             {
@@ -153,7 +156,19 @@ internal class CronJob(
             {
                 SetCronJobDownloads(runtimeState.DownloadQueue.Count, selectedDirectViewLinks.Count - finishedDownloadsCount);
 
-                episode.M3U8Url = await GetEpisodeM3U8(directViewLink.DirectLink, downloaderPreferences);
+                (bool solveCaptcha, episode.M3U8Url) = await GetEpisodeM3U8(hosterEpisodeUrl, directViewLink.DirectLink, downloaderPreferences);
+
+                if (solveCaptcha)
+                {
+                    runtimeState.RaiseError(MessageType.Error, InfoMessage.CaptchaDetected + hosterEpisodeUrl);
+
+                    await Abort();
+                    quartzService.CancelJob();
+                    runtimeState.StopMarkDownload = null;
+                    runtimeState.RaiseError(MessageType.Info, InfoMessage.StopMarkReached);
+                    SetCronJobState(CronJobState.Paused);
+                    break;
+                }
 
                 if (string.IsNullOrEmpty(episode.M3U8Url))
                 {
@@ -240,7 +255,7 @@ internal class CronJob(
         runtimeState.NextRun = null;
     }
 
-    private async Task<string?> GetEpisodeM3U8(string streamUrl, DownloaderPreferencesModel downloaderPreferences)
+    private async Task<(bool captcha, string? )> GetEpisodeM3U8(string episodeUrl, string streamUrl, DownloaderPreferencesModel downloaderPreferences)
     {
         Browser ??= await Puppeteer.LaunchAsync(new LaunchOptions
         {
@@ -260,25 +275,28 @@ internal class CronJob(
 
         try
         {
-            string? videoPageHtml = await GetVideoPageHtml(page, streamUrl);
+            string? videoPageHtml = await GetVideoPageHtml(page, episodeUrl);
+            bool captcha = await HasCloudflareCaptcha(page, TimeSpan.FromSeconds(10));
 
-            if (string.IsNullOrEmpty(videoPageHtml)) return null;
+            videoPageHtml = await GetVideoPageHtml(page, streamUrl);
 
-            if (TryGetVideoSource(videoPageHtml, out string? m3u8)) return m3u8;
+            if (string.IsNullOrEmpty(videoPageHtml)) return (captcha, null);
+
+            if (TryGetVideoSource(videoPageHtml, out string? m3u8)) return (captcha, m3u8);
 
             string? m3u8FromJwPlayer = await GetM3U8ViaJwPlayer(page);
 
             if (!string.IsNullOrEmpty(m3u8FromJwPlayer))
             {
-                return m3u8FromJwPlayer;
+                return (captcha, m3u8FromJwPlayer);
             }
 
-            return null;
+            return (captcha, null);
         }
         catch (Exception ex)
         {
             logger.LogError(ex.Message);
-            return null;
+            return (false, null);
         }
         finally
         {
@@ -331,17 +349,42 @@ internal class CronJob(
         return false;
     }
 
-    private async Task<string?> GetVideoPageHtml(IPage page, string streamUrl)
+    private async Task<string?> GetVideoPageHtml(IPage page, string url)
     {
-        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Navigation to Page {streamUrl}");
+        logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | Navigation to Page {url}");
 
-        await page.GoToAsync(streamUrl, new NavigationOptions
+        await page.GoToAsync(url, new NavigationOptions
         {
-            WaitUntil = [WaitUntilNavigation.DOMContentLoaded],
+            WaitUntil = [WaitUntilNavigation.Networkidle2],
             Timeout = 10000
         });
 
         return await page.GetContentAsync();
+    }
+
+    private static async Task<bool> HasCloudflareCaptcha(IPage page, TimeSpan timeout)
+    {
+        try
+        {
+            await page.WaitForFunctionAsync(
+                @"() => Boolean(
+                    document.querySelector('iframe[src*=""challenges.cloudflare.com""]') ||
+                    document.querySelector('iframe[src*=""turnstile""]') ||
+                    document.querySelector('.cf-turnstile') ||
+                    document.querySelector('[data-sitekey]') ||
+                    document.querySelector('input[name=""cf-turnstile-response""]')
+                )",
+                new WaitForFunctionOptions
+                {
+                    Timeout = (int)timeout.TotalMilliseconds
+                });
+
+            return true;
+        }
+        catch (WaitTaskTimeoutException)
+        {
+            return false;
+        }
     }
 
     private async Task<string?> GetM3U8ViaJwPlayer(IPage page)

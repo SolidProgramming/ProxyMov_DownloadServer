@@ -374,3 +374,4 @@ FodyWeavers.xsd
 **/settings.json
 /.publish-artifacts
 /.dotnet/.dotnet
+/ProxyMov_DownloadServer/ProxyMov_DownloadServer/patchright-user-data

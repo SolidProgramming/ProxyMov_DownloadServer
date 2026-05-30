@@ -66,6 +66,7 @@ internal class CronJob(
         }
 
         SetCronJobState(CronJobState.CheckingForDownloads);
+        runtimeState.SetPendingCaptchaUrl(null);
 
         DownloaderPreferencesModel? downloaderPreferences =
             await apiService.GetAsync<DownloaderPreferencesModel?>("getDownloaderPreferences") ?? new();
@@ -160,13 +161,14 @@ internal class CronJob(
 
                 if (solveCaptcha)
                 {
-                    runtimeState.RaiseError(MessageType.Error, InfoMessage.CaptchaDetected + hosterEpisodeUrl);
+                    runtimeState.SetPendingCaptchaUrl(hosterEpisodeUrl);
+                    runtimeState.RaiseError(MessageType.Error, InfoMessage.CaptchaDetected);
+                    await NotifyCaptchaIfEnabled(downloaderPreferences, hosterEpisodeUrl, streamingPortal);
 
                     await Abort();
                     quartzService.CancelJob();
                     runtimeState.StopMarkDownload = null;
-                    runtimeState.RaiseError(MessageType.Info, InfoMessage.StopMarkReached);
-                    SetCronJobState(CronJobState.Paused);
+                    SetCronJobState(CronJobState.Captcha);
                     break;
                 }
 
@@ -475,5 +477,27 @@ internal class CronJob(
         bool removeSuccess = await apiService.RemoveFinishedDownload(episodeDownload);
 
         if (!removeSuccess) runtimeState.RaiseError(MessageType.Warning, WarningMessage.DownloadNotRemoved);
+    }
+
+    private async Task NotifyCaptchaIfEnabled(DownloaderPreferencesModel downloaderPreferences, string hosterEpisodeUrl,
+        StreamingPortal streamingPortal)
+    {
+        if (!downloaderPreferences.TelegramCaptchaNotification) return;
+
+        try
+        {
+            string host = hosterEpisodeUrl;
+            if (Uri.TryCreate(hosterEpisodeUrl, UriKind.Absolute, out Uri? uri))
+            {
+                host = uri.Host;
+            }
+
+            HosterModel hosterModel = new(host, streamingPortal, hosterEpisodeUrl);
+            await apiService.SendCaptchaNotification(hosterModel);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning($"{DateTime.UtcNow.ToLocalTime()} | Telegram captcha notification failed: {ex.Message}");
+        }
     }
 }

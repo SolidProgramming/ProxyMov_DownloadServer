@@ -6,5 +6,6 @@ public enum CronJobState
     WaitForNextCycle,
     CheckingForDownloads,
     Running,
-    Paused
+    Paused,
+    Captcha
 }

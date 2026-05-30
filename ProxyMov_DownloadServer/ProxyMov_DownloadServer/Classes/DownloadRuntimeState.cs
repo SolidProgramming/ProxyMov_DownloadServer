@@ -9,6 +9,7 @@ public class DownloadRuntimeState
     public Queue<EpisodeDownloadModel>? DownloadQueue { get; private set; }
     public List<EpisodeDownloadModel> SkippedDownloads { get; } = [];
     public EpisodeDownloadModel? StopMarkDownload { get; set; }
+    public string? PendingCaptchaUrl { get; private set; }
     public int Interval { get; set; }
     public DateTime? NextRun { get; set; }
     public CronJobState CronJobState { get; private set; } = CronJobState.WaitForNextCycle;
@@ -59,5 +60,10 @@ public class DownloadRuntimeState
     public void RaiseError(MessageType messageType, string message)
     {
         ErrorOccurred?.Invoke(messageType, message);
+    }
+
+    public void SetPendingCaptchaUrl(string? url)
+    {
+        PendingCaptchaUrl = url;
     }
 }

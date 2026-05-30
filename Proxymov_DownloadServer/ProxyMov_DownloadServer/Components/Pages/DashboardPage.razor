@@ -49,6 +49,24 @@
         </div>
     </BodyTemplate>
 </HxModal>
+<HxModal ShowCloseButton="false" CloseOnEscape="false" Size="ModalSize.Large" @ref="CaptchaModal" Centered="true">
+    <BodyTemplate>
+        <div class="container">
+            <HxAlert Color="ThemeColor.Warning" CssClass="mt-2">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                    <div>
+                        <HxIcon CssClass="pe-1" Icon="@BootstrapIcon.ExclamationTriangleFill" />
+                        Captcha erkannt. Bitte Link im Browser öffnen, Captcha lösen und danach fortsetzen:
+                        <a href="@RuntimeState.PendingCaptchaUrl" target="_blank">@RuntimeState.PendingCaptchaUrl</a>
+                    </div>
+                    <HxButton Color="ThemeColor.Success" Icon="BootstrapIcon.PlayFill" OnClick="ContinueAfterCaptcha">
+                        Captcha gelöst, fortsetzen
+                    </HxButton>
+                </div>
+            </HxAlert>
+        </div>
+    </BodyTemplate>
+</HxModal>
 <div class="container-lg">
     <div class="d-none d-md-block mt-4">
         <div style="overflow-y: auto;">
@@ -416,6 +434,7 @@
     private Lang LangText = new();
 
     private HxModal DownloadPathModal = new();
+    private HxModal CaptchaModal = new();
 
     private ConvertProgressModel? ConvertProgress;
     private EpisodeDownloadModel? DownloadEpisode;
@@ -669,6 +688,12 @@
         {
             await CronJobService.CheckForNewDownloads();
         }
+    }
+
+    private async Task ContinueAfterCaptcha()
+    {
+        RuntimeState.SetPendingCaptchaUrl(null);
+        await CheckForDownloads();
     }
 
     private async Task StopConverter()

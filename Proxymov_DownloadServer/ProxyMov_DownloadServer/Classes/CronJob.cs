@@ -392,13 +392,22 @@ internal class CronJob(
         try
         {
             await page.WaitForFunctionAsync(@"() => {
-                    return typeof jwplayer !== 'undefined' && 
-                           jwplayer('a') && 
-                           typeof jwplayer('a').getPlaylist === 'function';
+                    const jw = window.jwplayer;
+                    if (typeof jw !== 'function') {
+                        return false;
+                    }
+
+                    const player = jw() || jw('a');
+                    return Boolean(player && typeof player.getPlaylist === 'function');
                 }", new WaitForFunctionOptions { Timeout = 10000 });
 
             await page.EvaluateFunctionAsync(@"() => {
-                    const player = jwplayer('a');
+                    const jw = window.jwplayer;
+                    if (typeof jw !== 'function') {
+                        return;
+                    }
+
+                    const player = jw() || jw('a');
                     if (player && typeof player.play === 'function') {
                         player.play();
                     }
@@ -408,8 +417,11 @@ internal class CronJob(
 
             string? m3u8Url = await page.EvaluateFunctionAsync<string?>(@"() => {
                     try {
-                        const player = jwplayer('a');
-                        if (!player) return null;                        
+                        const jw = window.jwplayer;
+                        if (typeof jw !== 'function') return null;
+
+                        const player = jw() || jw('a');
+                        if (!player) return null;
                         
                         const playlist = player.getPlaylist();
                         if (playlist && playlist.length > 0) {

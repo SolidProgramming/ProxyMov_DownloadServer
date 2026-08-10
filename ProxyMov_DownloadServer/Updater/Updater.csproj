@@ -12,7 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.25.0" />
+        <PackageReference Include="Havit.Blazor.Components.Web.Bootstrap" Version="4.26.1" />
         <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
     </ItemGroup>
 

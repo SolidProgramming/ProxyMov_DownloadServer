@@ -3,7 +3,7 @@ using HtmlAgilityPack;
 namespace ProxyMov_DownloadServer.Services
 {
     public class STOService(ILogger<STOService> logger, Interfaces.IHttpClientFactory httpClientFactory)
-        : StreamingPortalServiceBase<STOService>(logger, httpClientFactory, "https://serienstream.cx", "S.TO", StreamingPortal.STO)
+        : StreamingPortalServiceBase<STOService>(logger, httpClientFactory, "https://serienstream.to", "S.TO", StreamingPortal.STO)
     {
         public override Task<List<DirectViewLinkModel>?> GetDirectViewLinksAsync(EpisodeDownloadModel episode)
         {

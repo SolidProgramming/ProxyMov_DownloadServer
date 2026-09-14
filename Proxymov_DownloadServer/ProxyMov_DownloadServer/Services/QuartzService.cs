@@ -38,7 +38,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory, DownloadRuntimeSt
                 .ForJob(JobKey)
                 .WithIdentity(JobName + "-trigger")
                 .WithSimpleSchedule(_ =>
-                    _.WithIntervalInMinutes(intervalInMinutes)
+                    _.WithInterval(TimeSpan.FromMinutes(intervalInMinutes))
                         .RepeatForever())
                 .StartAt(startTime)
                 .Build();
@@ -46,7 +46,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory, DownloadRuntimeSt
             runtimeState.NextRun = startTime.DateTime;
             runtimeState.Interval = intervalInMinutes;
 
-            if (Scheduler != null) await Scheduler.ScheduleJob(job, Trigger, CancellationToken);
+            if (Scheduler != null) await Scheduler.ScheduleJob(job, Trigger, ScheduleJobOptions.Replacing, CancellationToken);
         }
     }
 
@@ -61,7 +61,7 @@ public class QuartzService(ISchedulerFactory schedulerFactory, DownloadRuntimeSt
                 .ForJob(JobKey)
                 .WithIdentity(JobName + "-trigger")
                 .WithSimpleSchedule(_ =>
-                    _.WithIntervalInMinutes(runtimeState.Interval)
+                    _.WithInterval(TimeSpan.FromMinutes(runtimeState.Interval))
                         .RepeatForever())
                 .StartNow()
                 .Build();

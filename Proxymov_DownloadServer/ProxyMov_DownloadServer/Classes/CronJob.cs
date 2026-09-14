@@ -20,7 +20,7 @@ internal class CronJob(
     private IBrowser? Browser;
     private bool RegisteredShutdown { get; set; }
 
-    public async Task Execute(IJobExecutionContext context)
+    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken)
     {
         if (!RegisteredShutdown)
         {
@@ -30,7 +30,7 @@ internal class CronJob(
         }
 
         runtimeState.NextRun = context!.NextFireTimeUtc!.Value.ToLocalTime().DateTime;
-        await CheckForNewDownloads();
+        await CheckForNewDownloads(cancellationToken);
     }
 
     private void SetCronJobState(CronJobState jobState)
@@ -44,7 +44,7 @@ internal class CronJob(
         runtimeState.SetDownloadCounts(downloadCount, languageDownloadCount);
     }
 
-    public async Task CheckForNewDownloads()
+    public async Task CheckForNewDownloads(CancellationToken cancellationToken = default)
     {
         logger.LogInformation($"{DateTime.UtcNow.ToLocalTime()} | {runtimeState.CronJobState}");
 
@@ -93,6 +93,8 @@ internal class CronJob(
 
         while (runtimeState.DownloadQueue!.Count != 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (ConverterService.CTS is not null && ConverterService.CTS.IsCancellationRequested &&
                 !ConverterService.AbortIsSkip)
                 break;

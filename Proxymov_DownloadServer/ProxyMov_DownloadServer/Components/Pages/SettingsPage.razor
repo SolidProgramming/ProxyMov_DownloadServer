@@ -7,6 +7,7 @@
 @inject IHxMessengerService ToastService
 @inject I18nText I18nText
 @inject IQuartzService QuartzService
+@inject DownloadRuntimeState RuntimeState
 
 <PageTitle>@LangText["Settings"]</PageTitle>
 
@@ -29,6 +30,9 @@
                     <label class="text-warning mt-2">@LangText["IntervalInMinutes"]</label>
                     <HxInputNumber InputSize="InputSize.Small" CssClass="mt-2" Decimals="0" TValue="int"
                                    @bind-Value="DownloaderPreferences.Interval" />
+                    <label class="text-warning mt-3">@LangText["MaxConcurrentDownloads"] (1-@SettingsModel.MaxConcurrentDownloadsLimit)</label>
+                    <HxInputNumber InputSize="InputSize.Small" CssClass="mt-2" Decimals="0" TValue="int"
+                                   @bind-Value="MaxConcurrentDownloads" />
                 </div>
             </div>
             <div class="col-sm-auto">
@@ -176,6 +180,7 @@
 
     private bool ProxySettingsChanged { get; set; }
     private string? DownloadPath { get; set; }
+    private int MaxConcurrentDownloads { get; set; } = 1;
     private DownloaderPreferencesModel? DownloaderPreferences = new();
 
     private FileFormat SelectedFileFormat { get; set; }
@@ -210,6 +215,7 @@
             }
 
             DownloadPath = settings.DownloadPath;
+            MaxConcurrentDownloads = settings.MaxConcurrentDownloads;
 
             if (settings.ConverterSettings is not null)
             {
@@ -238,6 +244,7 @@
         if (settings != null)
         {
             settings.DownloadPath = DownloadPath;
+            settings.MaxConcurrentDownloads = Math.Clamp(MaxConcurrentDownloads, 1, SettingsModel.MaxConcurrentDownloadsLimit);
             settings.ConverterSettings = new ConverterSettingsModel
             {
                 FileFormat = SelectedFileFormat,
@@ -247,6 +254,8 @@
             };
 
             SettingsHelper.SaveSettings(settings);
+
+            RuntimeState.SetMaxConcurrentDownloads(settings.MaxConcurrentDownloads);
         }
 
         if (DownloaderPreferences.AutoStart)

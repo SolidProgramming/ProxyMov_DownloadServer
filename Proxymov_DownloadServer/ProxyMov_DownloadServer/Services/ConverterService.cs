@@ -1,5 +1,6 @@
 ﻿using CliWrap;
 using Newtonsoft.Json;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -11,21 +12,19 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 {
     public delegate void ConverterStateChangedEvent(ConverterState state, EpisodeDownloadModel? episode = null);
 
-    public delegate void ConvertProgressChangedEvent(ConvertProgressModel convertProgress);
+    public delegate void ConvertProgressChangedEvent(ActiveDownloadModel download);
 
     public delegate void ConvertStartedEvent(EpisodeDownloadModel episode);
 
     private const int MaxGetStreamDurationRetries = 3;
     private const int MaxGetVideoFileInfoRetries = 2;
 
-    private static long PreviousDownloadSize;
-    private static DateTime? FFMPEGStartTime;
-    private static EpisodeDownloadModel? Episode { get; set; }
+    private static readonly ConcurrentDictionary<Guid, ActiveDownloadModel> ActiveDownloads = new();
     private static ConverterState ConverterState { get; set; } = ConverterState.Undefined;
 
     private bool IsInitialized { get; set; }
-    public static bool AbortIsSkip { get; set; }
 
+    // Cancels every running download (stop). Each download is linked to it via its own token source.
     public static CancellationTokenSource? CTS { get; set; }
 
     public bool Init()
@@ -105,7 +104,12 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             }
         }
 
-        Episode = episode;
+        CancellationTokenSource downloadCTS = CTS is not null
+            ? CancellationTokenSource.CreateLinkedTokenSource(CTS.Token)
+            : new CancellationTokenSource();
+
+        ActiveDownloadModel activeDownload = new(episode, language, downloadCTS);
+        ActiveDownloads[activeDownload.Id] = activeDownload;
 
         ConverterStateChanged?.Invoke(ConverterState.Downloading, episode);
 
@@ -153,9 +157,7 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
 
         ConvertStarted?.Invoke(episode);
 
-        Episode.Download.DownloadStartTime = DateTime.UtcNow.ToLocalTime();
-
-        CTS = new CancellationTokenSource();
+        episode.Download.DownloadStartTime = DateTime.UtcNow.ToLocalTime();
 
         CommandResultExt? result = null;
 
@@ -164,8 +166,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             CommandResult tempResult = await Cli.Wrap(binPath)
                 .WithArguments(args)
                 .WithValidation(CommandResultValidation.ZeroExitCode)
-                .WithStandardErrorPipe(PipeTarget.ToDelegate(ReadOutput, Encoding.UTF8))
-                .ExecuteAsync(CTS.Token);
+                .WithStandardErrorPipe(PipeTarget.ToDelegate(output => ReadOutput(output, activeDownload), Encoding.UTF8))
+                .ExecuteAsync(downloadCTS.Token);
 
             result = new CommandResultExt(tempResult.ExitCode, tempResult.StartTime, tempResult.ExitTime);
         }
@@ -173,8 +175,8 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         {
             if (File.Exists(filePath)) File.Delete(filePath);
 
-            if (AbortIsSkip)
-                return new CommandResultExt(skipped: true);
+            if (activeDownload.IsSkipRequested)
+                result = new CommandResultExt(skipped: true);
             else
                 logger.LogWarning($"{DateTime.UtcNow.ToLocalTime()} | {WarningMessage.DownloadCanceled}");
         }
@@ -186,10 +188,9 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         }
         finally
         {
-            Episode = null;
-            FFMPEGStartTime = null;
-            PreviousDownloadSize = 0;
-            ConverterStateChanged?.Invoke(ConverterState.Idle);
+            ActiveDownloads.TryRemove(activeDownload.Id, out _);
+            downloadCTS.Dispose();
+            ConverterStateChanged?.Invoke(ActiveDownloads.IsEmpty ? ConverterState.Idle : ConverterState.Downloading);
         }
 
         return result;
@@ -269,12 +270,11 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return Path.Combine(folderPath, episodeFolderName).GetValidFileName();
     }
 
-    private static void ReadOutput(string output)
+    private static void ReadOutput(string output, ActiveDownloadModel download)
     {
-        if (Episode is null)
-            return;
+        EpisodeDownloadModel episode = download.Episode;
 
-        if (!FFMPEGStartTime.HasValue) FFMPEGStartTime = DateTime.UtcNow.ToLocalTime();
+        if (!download.FFMPEGStartTime.HasValue) download.FFMPEGStartTime = DateTime.UtcNow.ToLocalTime();
 
         if (!Regex.IsMatch(output, "time=([\\d:]+)")) return;
 
@@ -303,15 +303,15 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             string timeText = timeMatch.Groups[1].Value;
             progress.Time = TimeSpan.Parse(timeText);
 
-            long bytesDownloaded = progress.Size * 1024 - PreviousDownloadSize;
+            long bytesDownloaded = progress.Size * 1024 - download.PreviousDownloadSize;
 
             if (bytesDownloaded > 0)
             {
-                progress.KBytePerSecond = bytesDownloaded / 1024 / (DateTime.UtcNow.ToLocalTime() - FFMPEGStartTime).Value.TotalSeconds;
-                PreviousDownloadSize = progress.Size;
+                progress.KBytePerSecond = bytesDownloaded / 1024 / (DateTime.UtcNow.ToLocalTime() - download.FFMPEGStartTime).Value.TotalSeconds;
+                download.PreviousDownloadSize = progress.Size;
             }
 
-            double progressPercent = 100.0d * (progress.Time.TotalSeconds / Episode.Download.StreamDuration.TotalSeconds);
+            double progressPercent = 100.0d * (progress.Time.TotalSeconds / episode.Download.StreamDuration.TotalSeconds);
 
             if (progressPercent <= 0.0) return;
 
@@ -331,9 +331,14 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
             string fpsText = fpsMatch.Groups[1].Value;
             progress.FPS = float.Parse(fpsText);
 
-            progress.ETA = EstimateCompletionTime(progress.ProgressPercent, Episode.Download.DownloadStartTime);
+            progress.ETA = EstimateCompletionTime(progress.ProgressPercent, episode.Download.DownloadStartTime);
 
-            ConvertProgressChanged?.Invoke(progress);
+            download.Progress = progress;
+
+            if (download.SmoothedETA.TotalSeconds == 0 || progress.ETA < download.SmoothedETA)
+                download.SmoothedETA = progress.ETA;
+
+            ConvertProgressChanged?.Invoke(download);
         }
         catch (Exception)
         {
@@ -635,9 +640,9 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         _ => null
     };
 
-    public static EpisodeDownloadModel? GetDownloadEpisode()
+    public static List<ActiveDownloadModel> GetActiveDownloads()
     {
-        return Episode;
+        return [.. ActiveDownloads.Values.OrderBy(_ => _.Episode.Download.DownloadStartTime)];
     }
 
     public static ConverterState GetConverterState()
@@ -645,11 +650,33 @@ public class ConverterService(ILogger<ConverterService> logger, IHostApplication
         return ConverterState;
     }
 
-    public static void Abort(bool isSkip = false)
+    public static void Abort()
     {
-        AbortIsSkip = isSkip;
-
         if (CTS is not null && !CTS.Token.IsCancellationRequested) CTS.Cancel();
+
+        foreach (ActiveDownloadModel download in ActiveDownloads.Values)
+        {
+            CancelDownload(download);
+        }
+    }
+
+    public static void Skip(Guid downloadId)
+    {
+        if (!ActiveDownloads.TryGetValue(downloadId, out ActiveDownloadModel? download)) return;
+
+        download.IsSkipRequested = true;
+        CancelDownload(download);
+    }
+
+    private static void CancelDownload(ActiveDownloadModel download)
+    {
+        try
+        {
+            if (!download.CTS.IsCancellationRequested) download.CTS.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private static int GetResolutionPriority(int? height, VideoResolution preference)

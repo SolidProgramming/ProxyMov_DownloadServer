@@ -5,6 +5,9 @@ public class DownloadRuntimeState
     public delegate void DownloadsChangedEventHandler(int downloadCount, int languageDownloadCount);
     public delegate void ErrorEventHandler(MessageType messageType, string message);
     public delegate void StateChangedEventHandler(CronJobState jobState);
+    public delegate void MaxConcurrentDownloadsChangedEventHandler(int maxConcurrentDownloads);
+
+    private readonly Lock _queueLock = new();
 
     public Queue<EpisodeDownloadModel>? DownloadQueue { get; private set; }
     public List<EpisodeDownloadModel> SkippedDownloads { get; } = [];
@@ -15,8 +18,10 @@ public class DownloadRuntimeState
     public CronJobState CronJobState { get; private set; } = CronJobState.WaitForNextCycle;
     public int DownloadCount { get; private set; }
     public int LanguageDownloadCount { get; private set; }
+    public int MaxConcurrentDownloads { get; private set; } = 1;
 
     public event StateChangedEventHandler? StateChanged;
+    public event MaxConcurrentDownloadsChangedEventHandler? MaxConcurrentDownloadsChanged;
     public event ErrorEventHandler? ErrorOccurred;
     public event DownloadsChangedEventHandler? DownloadsChanged;
 
@@ -35,8 +40,44 @@ public class DownloadRuntimeState
 
     public void SetDownloadQueue(Queue<EpisodeDownloadModel>? downloadQueue)
     {
-        DownloadQueue = downloadQueue;
+        lock (_queueLock)
+        {
+            DownloadQueue = downloadQueue;
+        }
+
         DownloadsChanged?.Invoke(DownloadCount, LanguageDownloadCount);
+    }
+
+    public bool TryDequeueDownload(out EpisodeDownloadModel? download, out int remainingCount)
+    {
+        lock (_queueLock)
+        {
+            download = null;
+            remainingCount = DownloadQueue?.Count ?? 0;
+
+            if (DownloadQueue is null || !DownloadQueue.TryDequeue(out download)) return false;
+
+            remainingCount = DownloadQueue.Count;
+            return true;
+        }
+    }
+
+    public int GetQueuedDownloadCount()
+    {
+        lock (_queueLock)
+        {
+            return DownloadQueue?.Count ?? 0;
+        }
+    }
+
+    public void SetMaxConcurrentDownloads(int maxConcurrentDownloads)
+    {
+        maxConcurrentDownloads = Math.Clamp(maxConcurrentDownloads, 1, SettingsModel.MaxConcurrentDownloadsLimit);
+
+        if (MaxConcurrentDownloads == maxConcurrentDownloads) return;
+
+        MaxConcurrentDownloads = maxConcurrentDownloads;
+        MaxConcurrentDownloadsChanged?.Invoke(maxConcurrentDownloads);
     }
 
     public void ClearSkippedDownloads()
@@ -54,7 +95,10 @@ public class DownloadRuntimeState
 
     public List<EpisodeDownloadModel>? GetVisibleDownloads()
     {
-        return DownloadQueue?.ToList().Except(SkippedDownloads).ToList();
+        lock (_queueLock)
+        {
+            return DownloadQueue?.ToList().Except(SkippedDownloads).ToList();
+        }
     }
 
     public void RaiseError(MessageType messageType, string message)

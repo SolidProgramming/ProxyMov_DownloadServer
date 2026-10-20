@@ -9,6 +9,7 @@
   "DownloadPath": "Download Path:",
   "Generally": "Generally:",
   "IntervalInMinutes": "Interval (in Minutes)",
+  "MaxConcurrentDownloads": "Concurrent downloads",
   "AutostartDownloads": "Auto start downloading",
   "TelegramNotifyOnCaptcha": "Notify if captcha needs to be solved",
   "UseProxy": "Use Proxy",
